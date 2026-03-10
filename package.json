@@ -1,0 +1,14 @@
+{
+  "name": "mac-backend",
+  "version": "1.0.0",
+  "description": "Backend inicial do M.A.C.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.17.1",
+    "@supabase/supabase-js": "^2.49.1",
+    "express": "^4.19.2"
+  }
+}

@@ -18,12 +18,21 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-function criarRespostaFallback(contexto, mensagem) {
+function criarRespostaFallback(contexto, mensagem, perfilLead = null) {
   const empresa = contexto?.empresa || {};
   const servicos = contexto?.servicos || [];
   const faq = contexto?.faq || [];
 
   const msg = mensagem.toLowerCase();
+  const perfil = perfilLead?.perfil_estimado || "N";
+
+  function modularTexto(base, detalhada, acolhedora, dinamica) {
+    if (perfil === "D" || perfil === "DC" || perfil === "DI") return base;
+    if (perfil === "C" || perfil === "SC") return detalhada;
+    if (perfil === "S" || perfil === "IS") return acolhedora;
+    if (perfil === "I") return dinamica;
+    return base;
+  }
 
   const servicoEncontrado = servicos.find((s) =>
     msg.includes((s.nome_servico || "").toLowerCase())
@@ -36,10 +45,15 @@ function criarRespostaFallback(contexto, mensagem) {
         : "valor sob consulta";
 
     const tempo = servicoEncontrado.tempo_atendimento
-      ? ` e leva cerca de ${servicoEncontrado.tempo_atendimento}`
-      : "";
+      ? `${servicoEncontrado.tempo_atendimento}`
+      : "tempo sob consulta";
 
-    return `Claro! O serviço ${servicoEncontrado.nome_servico} custa ${preco}${tempo}.`;
+    return modularTexto(
+      `${servicoEncontrado.nome_servico}: ${preco}. Duração média de ${tempo}.`,
+      `O serviço ${servicoEncontrado.nome_servico} custa ${preco} e tem duração média de ${tempo}. Se quiser, também posso te explicar melhor como funciona.`,
+      `Claro, posso te ajudar 😊 O serviço ${servicoEncontrado.nome_servico} custa ${preco} e dura cerca de ${tempo}.`,
+      `Fazemos sim 😊 O serviço ${servicoEncontrado.nome_servico} custa ${preco} e leva cerca de ${tempo}.`
+    );
   }
 
   const faqEncontrada = faq.find((f) =>
@@ -47,7 +61,12 @@ function criarRespostaFallback(contexto, mensagem) {
   );
 
   if (faqEncontrada) {
-    return faqEncontrada.resposta;
+    return modularTexto(
+      faqEncontrada.resposta,
+      `${faqEncontrada.resposta} Se quiser, posso detalhar melhor.`,
+      `${faqEncontrada.resposta} Qualquer coisa, sigo te ajudando com calma 😊`,
+      `${faqEncontrada.resposta} Se quiser, já posso te passar mais informações 😊`
+    );
   }
 
   if (msg.includes("sábado") || msg.includes("sabado")) {
@@ -57,13 +76,23 @@ function criarRespostaFallback(contexto, mensagem) {
     );
 
     if (faqSabado) {
-      return faqSabado.resposta;
+      return modularTexto(
+        faqSabado.resposta,
+        `${faqSabado.resposta} Se quiser, posso detalhar horários e funcionamento.`,
+        `${faqSabado.resposta} Se quiser, te explico direitinho 😊`,
+        `${faqSabado.resposta} Se quiser, já te passo mais detalhes 😊`
+      );
     }
   }
 
   const nomeEmpresa = empresa.nome_empresa || "a empresa";
 
-  return `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. No momento estou com instabilidade temporária na IA, mas posso continuar com informações básicas da empresa ou encaminhar sua dúvida para confirmação da equipe.`;
+  return modularTexto(
+    `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso seguir com informações básicas ou encaminhar sua dúvida para confirmação da equipe.`,
+    `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso continuar com informações básicas da empresa ou detalhar sua dúvida para confirmação da equipe.`,
+    `Recebi sua mensagem e já registrei seu atendimento com ${nomeEmpresa}. Vou seguir te ajudando com as informações disponíveis 😊`,
+    `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso continuar te ajudando por aqui 😊`
+  );
 }
 
 async function salvarAnaliseConversa(leadId, analiseMensagem) {
@@ -332,7 +361,7 @@ app.get("/teste", async (req, res) => {
       analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
-      resposta = criarRespostaFallback(contexto, mensagem);
+      resposta = criarRespostaFallback(contexto, mensagem, perfilLead);
       console.error("Erro Gemini /teste:", geminiError.message);
     }
 
@@ -427,7 +456,7 @@ app.post("/chat", async (req, res) => {
       analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
-      resposta = criarRespostaFallback(contexto, mensagem);
+      resposta = criarRespostaFallback(contexto, mensagem, perfilLead);
       console.error("Erro Gemini /chat:", geminiError.message);
     }
 

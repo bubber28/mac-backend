@@ -31,13 +31,71 @@ app.get("/health", async (req, res) => {
 
     const { error } = await supabase.from("empresas").select("id").limit(1);
     status.supabase_connection = !error;
-    if (error) status.supabase_error = error.message;
+
+    if (error) {
+      status.supabase_error = error.message;
+    }
 
     res.json(status);
   } catch (err) {
     res.status(500).json({
       server: "error",
       message: err.message
+    });
+  }
+});
+
+app.get("/teste", async (req, res) => {
+  try {
+    const mensagem = "Oi, queria saber o valor da limpeza de pele";
+
+    const { data: entradaData, error: entradaError } = await supabase.rpc(
+      "registrar_entrada_mensagem",
+      {
+        p_empresa_id: 1,
+        p_nome: "Carlos",
+        p_telefone: "31999999999",
+        p_canal: "whatsapp",
+        p_mensagem: mensagem,
+        p_tipo_mensagem: "texto"
+      }
+    );
+
+    if (entradaError) {
+      return res.status(500).json({
+        error: "Erro ao registrar entrada da mensagem",
+        details: entradaError.message
+      });
+    }
+
+    const resposta = "Teste de resposta do M.A.C.";
+
+    const { error: respostaError } = await supabase.rpc(
+      "registrar_resposta_mac",
+      {
+        p_lead_id: entradaData.lead_id,
+        p_resposta: resposta,
+        p_tipo_mensagem: "texto"
+      }
+    );
+
+    if (respostaError) {
+      return res.status(500).json({
+        error: "Erro ao salvar resposta do M.A.C.",
+        details: respostaError.message
+      });
+    }
+
+    return res.json({
+      ok: true,
+      lead_id: entradaData.lead_id,
+      mensagem,
+      resposta
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: "Erro interno no /teste",
+      details: err.message
     });
   }
 });
@@ -78,9 +136,8 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    const payload = entradaData;
-    const leadId = payload.lead_id;
-    const contexto = payload.contexto_empresa || {};
+    const leadId = entradaData.lead_id;
+    const contexto = entradaData.contexto_empresa || {};
 
     const prompt = `
 Você é o M.A.C., atendente inteligente da empresa.

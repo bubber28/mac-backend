@@ -66,6 +66,33 @@ function criarRespostaFallback(contexto, mensagem) {
   return `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. No momento estou com instabilidade temporária na IA, mas posso continuar com informações básicas da empresa ou encaminhar sua dúvida para confirmação da equipe.`;
 }
 
+async function salvarAnaliseConversa(leadId, analiseMensagem) {
+  if (!leadId || !analiseMensagem) return;
+
+  const payload = {
+    lead_id: leadId,
+    mensagem_original: analiseMensagem.textoOriginal || null,
+    tamanho_mensagem: analiseMensagem.tamanhoMensagem || null,
+    objetividade: analiseMensagem.objetividade || null,
+    formalidade: analiseMensagem.formalidade || null,
+    energia: analiseMensagem.energia || null,
+    urgencia: analiseMensagem.urgencia || null,
+    intencao_detectada: analiseMensagem.intencaoDetectada || null,
+    tem_girias: analiseMensagem.temGirias ?? null,
+    caixa_alta: analiseMensagem.caixaAlta ?? null,
+    perfil_hipotese: analiseMensagem.perfilHipotese || null,
+    estrategia: analiseMensagem.estrategia || null
+  };
+
+  const { error } = await supabase
+    .from("analisar_conversa_mac")
+    .insert(payload);
+
+  if (error) {
+    throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
+  }
+}
+
 async function gerarRespostaComGemini(contexto, mensagem) {
   const analiseMensagem = analyzeMessage(mensagem);
 
@@ -152,6 +179,8 @@ app.get("/teste", async (req, res) => {
       console.error("Erro Gemini /teste:", geminiError.message);
     }
 
+    await salvarAnaliseConversa(entradaData.lead_id, analiseMensagem);
+
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",
       {
@@ -236,6 +265,8 @@ app.post("/chat", async (req, res) => {
       resposta = criarRespostaFallback(contexto, mensagem);
       console.error("Erro Gemini /chat:", geminiError.message);
     }
+
+    await salvarAnaliseConversa(leadId, analiseMensagem);
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",

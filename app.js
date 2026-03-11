@@ -93,6 +93,68 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
   }
 }
 
+async function atualizarPerfilLead(leadId, analiseMensagem) {
+  if (!leadId || !analiseMensagem) return;
+
+  const perfilAtual = analiseMensagem.perfilHipotese || "neutro";
+  const estrategiaAtual = analiseMensagem.estrategia || "resposta_equilibrada";
+
+  const { count, error: countError } = await supabase
+    .from("analise_conversa_mac")
+    .select("*", { count: "exact", head: true })
+    .eq("lead_id", leadId);
+
+  if (countError) {
+    throw new Error(`Erro ao contar análises do lead: ${countError.message}`);
+  }
+
+  const mensagensAnalisadas = count || 0;
+
+  let confianca = 0.5;
+  if (perfilAtual !== "neutro") confianca = 0.7;
+  if (mensagensAnalisadas >= 3 && perfilAtual !== "neutro") confianca = 0.8;
+  if (mensagensAnalisadas >= 5 && perfilAtual !== "neutro") confianca = 0.9;
+
+  const { data: perfilExistente, error: perfilError } = await supabase
+    .from("perfil_lead_mac")
+    .select("id")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (perfilError) {
+    throw new Error(`Erro ao buscar perfil do lead: ${perfilError.message}`);
+  }
+
+  const payload = {
+    lead_id: leadId,
+    perfil_estimado: perfilAtual,
+    confianca,
+    mensagens_analisadas: mensagensAnalisadas,
+    estrategia_dominante: estrategiaAtual,
+    ultimo_perfil_detectado: perfilAtual,
+    updated_at: new Date().toISOString()
+  };
+
+  if (perfilExistente?.id) {
+    const { error: updateError } = await supabase
+      .from("perfil_lead_mac")
+      .update(payload)
+      .eq("id", perfilExistente.id);
+
+    if (updateError) {
+      throw new Error(`Erro ao atualizar perfil do lead: ${updateError.message}`);
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from("perfil_lead_mac")
+      .insert(payload);
+
+    if (insertError) {
+      throw new Error(`Erro ao criar perfil do lead: ${insertError.message}`);
+    }
+  }
+}
+
 async function gerarRespostaComGemini(contexto, mensagem) {
   const analiseMensagem = analyzeMessage(mensagem);
 
@@ -180,6 +242,7 @@ app.get("/teste", async (req, res) => {
     }
 
     await salvarAnaliseConversa(entradaData.lead_id, analiseMensagem);
+    await atualizarPerfilLead(entradaData.lead_id, analiseMensagem);
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",
@@ -267,6 +330,7 @@ app.post("/chat", async (req, res) => {
     }
 
     await salvarAnaliseConversa(leadId, analiseMensagem);
+    await atualizarPerfilLead(leadId, analiseMensagem);
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",

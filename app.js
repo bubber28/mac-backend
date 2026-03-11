@@ -85,7 +85,7 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
   };
 
   const { error } = await supabase
-    .from("analisar_conversa_mac")
+    .from("analise_conversa_mac")
     .insert(payload);
 
   if (error) {

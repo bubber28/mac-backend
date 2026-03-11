@@ -432,9 +432,13 @@ async function buscarEstadoConversaLead(leadId) {
   return data || null;
 }
 
-async function gerarRespostaComGemini(contexto, mensagem, perfilLead = null, estadoConversa = null) {
-  const analiseMensagem = analyzeMessage(mensagem);
-
+async function gerarRespostaComGemini(
+  contexto,
+  mensagem,
+  analiseMensagem,
+  perfilLead = null,
+  estadoConversa = null
+) {
   const prompt = buildMacPrompt({
     contextoEmpresa: contexto,
     mensagemCliente: mensagem,
@@ -446,8 +450,7 @@ async function gerarRespostaComGemini(contexto, mensagem, perfilLead = null, est
   const result = await model.generateContent(prompt);
 
   return {
-    resposta: result.response.text().trim(),
-    analiseMensagem
+    resposta: result.response.text().trim()
   };
 }
 
@@ -508,7 +511,7 @@ app.get("/teste", async (req, res) => {
     const contexto = entradaData.contexto_empresa || {};
     let resposta = "";
     let origem_resposta = "gemini";
-    let analiseMensagem = analyzeMessage(mensagem);
+    const analiseMensagem = analyzeMessage(mensagem);
 
     await salvarAnaliseConversa(entradaData.lead_id, analiseMensagem);
     await atualizarPerfilLead(entradaData.lead_id, analiseMensagem);
@@ -521,11 +524,11 @@ app.get("/teste", async (req, res) => {
       const resultadoIA = await gerarRespostaComGemini(
         contexto,
         mensagem,
+        analiseMensagem,
         perfilLead,
         estadoConversa
       );
       resposta = resultadoIA.resposta;
-      analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
       resposta = criarRespostaFallback(contexto, mensagem, perfilLead, estadoConversa);
@@ -607,7 +610,7 @@ app.post("/chat", async (req, res) => {
 
     let resposta = "";
     let origem_resposta = "gemini";
-    let analiseMensagem = analyzeMessage(mensagem);
+    const analiseMensagem = analyzeMessage(mensagem);
 
     await salvarAnaliseConversa(leadId, analiseMensagem);
     await atualizarPerfilLead(leadId, analiseMensagem);
@@ -620,11 +623,11 @@ app.post("/chat", async (req, res) => {
       const resultadoIA = await gerarRespostaComGemini(
         contexto,
         mensagem,
+        analiseMensagem,
         perfilLead,
         estadoConversa
       );
       resposta = resultadoIA.resposta;
-      analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
       resposta = criarRespostaFallback(contexto, mensagem, perfilLead, estadoConversa);
@@ -662,4 +665,8 @@ app.post("/chat", async (req, res) => {
       details: err.message
     });
   }
+});
+
+app.listen(PORT, () => {
+  console.log(`Servidor M.A.C. rodando na porta ${PORT}`);
 });

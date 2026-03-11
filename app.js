@@ -18,13 +18,14 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-function criarRespostaFallback(contexto, mensagem, perfilLead = null) {
+function criarRespostaFallback(contexto, mensagem, perfilLead = null, estadoConversa = null) {
   const empresa = contexto?.empresa || {};
   const servicos = contexto?.servicos || [];
   const faq = contexto?.faq || [];
 
   const msg = mensagem.toLowerCase();
   const perfil = perfilLead?.perfil_estimado || "N";
+  const etapa = estadoConversa?.etapa_conversa || "aberta";
 
   function modularTexto(base, detalhada, acolhedora, dinamica) {
     if (perfil === "D" || perfil === "DC" || perfil === "DI") return base;
@@ -32,6 +33,47 @@ function criarRespostaFallback(contexto, mensagem, perfilLead = null) {
     if (perfil === "S" || perfil === "IS") return acolhedora;
     if (perfil === "I") return dinamica;
     return base;
+  }
+
+  function adicionarConducao(textoBase) {
+    if (etapa === "interesse") {
+      if (perfil === "D" || perfil === "DC" || perfil === "DI") {
+        return `${textoBase} Quer que eu veja um horário disponível?`;
+      }
+      if (perfil === "C" || perfil === "SC") {
+        return `${textoBase} Se quiser, também posso te explicar os próximos passos de atendimento.`;
+      }
+      if (perfil === "S" || perfil === "IS") {
+        return `${textoBase} Se quiser, posso seguir te ajudando com calma no próximo passo 😊`;
+      }
+      if (perfil === "I") {
+        return `${textoBase} Se quiser, já posso te passar o próximo passo 😊`;
+      }
+    }
+
+    if (etapa === "consideracao") {
+      if (perfil === "D" || perfil === "DC" || perfil === "DI") {
+        return `${textoBase} Posso te passar o próximo passo objetivamente.`;
+      }
+      if (perfil === "C" || perfil === "SC") {
+        return `${textoBase} Se quiser, posso organizar melhor as informações para você.`;
+      }
+      if (perfil === "S" || perfil === "IS") {
+        return `${textoBase} Se quiser, sigo te explicando com calma 😊`;
+      }
+      if (perfil === "I") {
+        return `${textoBase} Se quiser, já continuo com mais detalhes 😊`;
+      }
+    }
+
+    if (etapa === "fechamento") {
+      if (perfil === "D" || perfil === "DC" || perfil === "DI") {
+        return `${textoBase} Posso seguir com o agendamento.`;
+      }
+      return `${textoBase} Se quiser, posso continuar com o agendamento.`;
+    }
+
+    return textoBase;
   }
 
   const servicoEncontrado = servicos.find((s) =>
@@ -48,12 +90,14 @@ function criarRespostaFallback(contexto, mensagem, perfilLead = null) {
       ? `${servicoEncontrado.tempo_atendimento}`
       : "tempo sob consulta";
 
-    return modularTexto(
+    const texto = modularTexto(
       `${servicoEncontrado.nome_servico}: ${preco}. Duração média de ${tempo}.`,
       `O serviço ${servicoEncontrado.nome_servico} custa ${preco} e tem duração média de ${tempo}. Se quiser, também posso te explicar melhor como funciona.`,
       `Claro, posso te ajudar 😊 O serviço ${servicoEncontrado.nome_servico} custa ${preco} e dura cerca de ${tempo}.`,
       `Fazemos sim 😊 O serviço ${servicoEncontrado.nome_servico} custa ${preco} e leva cerca de ${tempo}.`
     );
+
+    return adicionarConducao(texto);
   }
 
   const faqEncontrada = faq.find((f) =>
@@ -61,12 +105,14 @@ function criarRespostaFallback(contexto, mensagem, perfilLead = null) {
   );
 
   if (faqEncontrada) {
-    return modularTexto(
+    const texto = modularTexto(
       faqEncontrada.resposta,
       `${faqEncontrada.resposta} Se quiser, posso detalhar melhor.`,
       `${faqEncontrada.resposta} Qualquer coisa, sigo te ajudando com calma 😊`,
       `${faqEncontrada.resposta} Se quiser, já posso te passar mais informações 😊`
     );
+
+    return adicionarConducao(texto);
   }
 
   if (msg.includes("sábado") || msg.includes("sabado")) {
@@ -76,23 +122,27 @@ function criarRespostaFallback(contexto, mensagem, perfilLead = null) {
     );
 
     if (faqSabado) {
-      return modularTexto(
+      const texto = modularTexto(
         faqSabado.resposta,
         `${faqSabado.resposta} Se quiser, posso detalhar horários e funcionamento.`,
         `${faqSabado.resposta} Se quiser, te explico direitinho 😊`,
         `${faqSabado.resposta} Se quiser, já te passo mais detalhes 😊`
       );
+
+      return adicionarConducao(texto);
     }
   }
 
   const nomeEmpresa = empresa.nome_empresa || "a empresa";
 
-  return modularTexto(
+  const textoBase = modularTexto(
     `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso seguir com informações básicas ou encaminhar sua dúvida para confirmação da equipe.`,
     `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso continuar com informações básicas da empresa ou detalhar sua dúvida para confirmação da equipe.`,
     `Recebi sua mensagem e já registrei seu atendimento com ${nomeEmpresa}. Vou seguir te ajudando com as informações disponíveis 😊`,
     `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso continuar te ajudando por aqui 😊`
   );
+
+  return adicionarConducao(textoBase);
 }
 
 async function salvarAnaliseConversa(leadId, analiseMensagem) {
@@ -253,6 +303,103 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
   }
 }
 
+function mapearEstadoConversa(analiseMensagem) {
+  const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
+
+  if (intencao === "orcamento") {
+    return {
+      etapa_conversa: "interesse",
+      ultima_intencao: "orcamento",
+      ultimo_assunto: "preco",
+      precisa_followup: true,
+      ultimo_objetivo: "informar_valor"
+    };
+  }
+
+  if (intencao === "explicacao") {
+    return {
+      etapa_conversa: "consideracao",
+      ultima_intencao: "explicacao",
+      ultimo_assunto: "entendimento_servico",
+      precisa_followup: true,
+      ultimo_objetivo: "educar_cliente"
+    };
+  }
+
+  if (intencao === "disponibilidade") {
+    return {
+      etapa_conversa: "consideracao",
+      ultima_intencao: "disponibilidade",
+      ultimo_assunto: "horario",
+      precisa_followup: true,
+      ultimo_objetivo: "informar_disponibilidade"
+    };
+  }
+
+  if (intencao === "agendamento") {
+    return {
+      etapa_conversa: "fechamento",
+      ultima_intencao: "agendamento",
+      ultimo_assunto: "marcacao",
+      precisa_followup: false,
+      ultimo_objetivo: "levar_para_marcacao"
+    };
+  }
+
+  return {
+    etapa_conversa: "aberta",
+    ultima_intencao: intencao,
+    ultimo_assunto: "duvida_geral",
+    precisa_followup: false,
+    ultimo_objetivo: "manter_conversa"
+  };
+}
+
+async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
+  if (!leadId || !analiseMensagem) return;
+
+  const estadoMapeado = mapearEstadoConversa(analiseMensagem);
+
+  const { data: estadoExistente, error: estadoError } = await supabase
+    .from("estado_conversa_lead_mac")
+    .select("*")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (estadoError) {
+    throw new Error(`Erro ao buscar estado da conversa: ${estadoError.message}`);
+  }
+
+  const payload = {
+    lead_id: leadId,
+    etapa_conversa: estadoMapeado.etapa_conversa,
+    ultima_intencao: estadoMapeado.ultima_intencao,
+    ultimo_assunto: estadoMapeado.ultimo_assunto,
+    precisa_followup: estadoMapeado.precisa_followup,
+    ultimo_objetivo: estadoMapeado.ultimo_objetivo,
+    updated_at: new Date().toISOString()
+  };
+
+  if (estadoExistente?.id) {
+    const { error: updateError } = await supabase
+      .from("estado_conversa_lead_mac")
+      .update(payload)
+      .eq("id", estadoExistente.id);
+
+    if (updateError) {
+      throw new Error(`Erro ao atualizar estado da conversa: ${updateError.message}`);
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from("estado_conversa_lead_mac")
+      .insert(payload);
+
+    if (insertError) {
+      throw new Error(`Erro ao criar estado da conversa: ${insertError.message}`);
+    }
+  }
+}
+
 async function buscarPerfilLead(leadId) {
   if (!leadId) return null;
 
@@ -269,14 +416,31 @@ async function buscarPerfilLead(leadId) {
   return data || null;
 }
 
-async function gerarRespostaComGemini(contexto, mensagem, perfilLead = null) {
+async function buscarEstadoConversaLead(leadId) {
+  if (!leadId) return null;
+
+  const { data, error } = await supabase
+    .from("estado_conversa_lead_mac")
+    .select("*")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Erro ao buscar estado da conversa: ${error.message}`);
+  }
+
+  return data || null;
+}
+
+async function gerarRespostaComGemini(contexto, mensagem, perfilLead = null, estadoConversa = null) {
   const analiseMensagem = analyzeMessage(mensagem);
 
   const prompt = buildMacPrompt({
     contextoEmpresa: contexto,
     mensagemCliente: mensagem,
     analiseMensagem,
-    perfilLead
+    perfilLead,
+    estadoConversa
   });
 
   const result = await model.generateContent(prompt);
@@ -348,20 +512,23 @@ app.get("/teste", async (req, res) => {
 
     await salvarAnaliseConversa(entradaData.lead_id, analiseMensagem);
     await atualizarPerfilLead(entradaData.lead_id, analiseMensagem);
+    await atualizarEstadoConversaLead(entradaData.lead_id, analiseMensagem);
 
     const perfilLead = await buscarPerfilLead(entradaData.lead_id);
+    const estadoConversa = await buscarEstadoConversaLead(entradaData.lead_id);
 
     try {
       const resultadoIA = await gerarRespostaComGemini(
         contexto,
         mensagem,
-        perfilLead
+        perfilLead,
+        estadoConversa
       );
       resposta = resultadoIA.resposta;
       analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
-      resposta = criarRespostaFallback(contexto, mensagem, perfilLead);
+      resposta = criarRespostaFallback(contexto, mensagem, perfilLead, estadoConversa);
       console.error("Erro Gemini /teste:", geminiError.message);
     }
 
@@ -388,7 +555,8 @@ app.get("/teste", async (req, res) => {
       resposta,
       origem_resposta,
       analiseMensagem,
-      perfilLead
+      perfilLead,
+      estadoConversa
     });
   } catch (err) {
     return res.status(500).json({
@@ -443,20 +611,23 @@ app.post("/chat", async (req, res) => {
 
     await salvarAnaliseConversa(leadId, analiseMensagem);
     await atualizarPerfilLead(leadId, analiseMensagem);
+    await atualizarEstadoConversaLead(leadId, analiseMensagem);
 
     const perfilLead = await buscarPerfilLead(leadId);
+    const estadoConversa = await buscarEstadoConversaLead(leadId);
 
     try {
       const resultadoIA = await gerarRespostaComGemini(
         contexto,
         mensagem,
-        perfilLead
+        perfilLead,
+        estadoConversa
       );
       resposta = resultadoIA.resposta;
       analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
-      resposta = criarRespostaFallback(contexto, mensagem, perfilLead);
+      resposta = criarRespostaFallback(contexto, mensagem, perfilLead, estadoConversa);
       console.error("Erro Gemini /chat:", geminiError.message);
     }
 
@@ -482,7 +653,8 @@ app.post("/chat", async (req, res) => {
       resposta,
       origem_resposta,
       analiseMensagem,
-      perfilLead
+      perfilLead,
+      estadoConversa
     });
   } catch (err) {
     return res.status(500).json({
@@ -490,8 +662,4 @@ app.post("/chat", async (req, res) => {
       details: err.message
     });
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`Servidor M.A.C. rodando na porta ${PORT}`);
 });

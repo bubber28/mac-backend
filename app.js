@@ -104,9 +104,7 @@ function calcularPerfilPorScores(scoreD, scoreI, scoreS, scoreC) {
   const maior = scores[0];
   const segundo = scores[1];
 
-  if (maior.valor === 0) {
-    return "N";
-  }
+  if (maior.valor === 0) return "N";
 
   if (segundo.valor > 0 && maior.valor - segundo.valor <= 1) {
     const combinacao = `${maior.perfil}${segundo.perfil}`;
@@ -226,13 +224,30 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
   }
 }
 
-async function gerarRespostaComGemini(contexto, mensagem) {
+async function buscarPerfilLead(leadId) {
+  if (!leadId) return null;
+
+  const { data, error } = await supabase
+    .from("perfil_lead_mac")
+    .select("*")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Erro ao buscar perfil do lead: ${error.message}`);
+  }
+
+  return data || null;
+}
+
+async function gerarRespostaComGemini(contexto, mensagem, perfilLead = null) {
   const analiseMensagem = analyzeMessage(mensagem);
 
   const prompt = buildMacPrompt({
     contextoEmpresa: contexto,
     mensagemCliente: mensagem,
-    analiseMensagem
+    analiseMensagem,
+    perfilLead
   });
 
   const result = await model.generateContent(prompt);
@@ -302,8 +317,17 @@ app.get("/teste", async (req, res) => {
     let origem_resposta = "gemini";
     let analiseMensagem = analyzeMessage(mensagem);
 
+    await salvarAnaliseConversa(entradaData.lead_id, analiseMensagem);
+    await atualizarPerfilLead(entradaData.lead_id, analiseMensagem);
+
+    const perfilLead = await buscarPerfilLead(entradaData.lead_id);
+
     try {
-      const resultadoIA = await gerarRespostaComGemini(contexto, mensagem);
+      const resultadoIA = await gerarRespostaComGemini(
+        contexto,
+        mensagem,
+        perfilLead
+      );
       resposta = resultadoIA.resposta;
       analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
@@ -311,9 +335,6 @@ app.get("/teste", async (req, res) => {
       resposta = criarRespostaFallback(contexto, mensagem);
       console.error("Erro Gemini /teste:", geminiError.message);
     }
-
-    await salvarAnaliseConversa(entradaData.lead_id, analiseMensagem);
-    await atualizarPerfilLead(entradaData.lead_id, analiseMensagem);
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",
@@ -337,7 +358,8 @@ app.get("/teste", async (req, res) => {
       pergunta: mensagem,
       resposta,
       origem_resposta,
-      analiseMensagem
+      analiseMensagem,
+      perfilLead
     });
   } catch (err) {
     return res.status(500).json({
@@ -390,8 +412,17 @@ app.post("/chat", async (req, res) => {
     let origem_resposta = "gemini";
     let analiseMensagem = analyzeMessage(mensagem);
 
+    await salvarAnaliseConversa(leadId, analiseMensagem);
+    await atualizarPerfilLead(leadId, analiseMensagem);
+
+    const perfilLead = await buscarPerfilLead(leadId);
+
     try {
-      const resultadoIA = await gerarRespostaComGemini(contexto, mensagem);
+      const resultadoIA = await gerarRespostaComGemini(
+        contexto,
+        mensagem,
+        perfilLead
+      );
       resposta = resultadoIA.resposta;
       analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
@@ -399,9 +430,6 @@ app.post("/chat", async (req, res) => {
       resposta = criarRespostaFallback(contexto, mensagem);
       console.error("Erro Gemini /chat:", geminiError.message);
     }
-
-    await salvarAnaliseConversa(leadId, analiseMensagem);
-    await atualizarPerfilLead(leadId, analiseMensagem);
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",
@@ -424,7 +452,8 @@ app.post("/chat", async (req, res) => {
       lead_id: leadId,
       resposta,
       origem_resposta,
-      analiseMensagem
+      analiseMensagem,
+      perfilLead
     });
   } catch (err) {
     return res.status(500).json({

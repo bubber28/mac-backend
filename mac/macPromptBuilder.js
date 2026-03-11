@@ -2,13 +2,15 @@ function buildMacPrompt({
   contextoEmpresa,
   mensagemCliente,
   analiseMensagem,
-  perfilLead
+  perfilLead,
+  estadoConversa
 }) {
   const empresa = contextoEmpresa?.empresa || {};
   const configMac = contextoEmpresa?.config_mac || {};
   const servicos = contextoEmpresa?.servicos || [];
   const faq = contextoEmpresa?.faq || [];
   const perfil = perfilLead || {};
+  const estado = estadoConversa || {};
 
   return `
 Você é o M.A.C., atendente inteligente da empresa.
@@ -35,7 +37,24 @@ ${JSON.stringify(
     confianca: perfil.confianca || 0.5,
     mensagens_analisadas: perfil.mensagens_analisadas || 0,
     estrategia_dominante: perfil.estrategia_dominante || "resposta_equilibrada",
-    ultimo_perfil_detectado: perfil.ultimo_perfil_detectado || "N"
+    ultimo_perfil_detectado: perfil.ultimo_perfil_detectado || "N",
+    score_d: perfil.score_d || 0,
+    score_i: perfil.score_i || 0,
+    score_s: perfil.score_s || 0,
+    score_c: perfil.score_c || 0
+  },
+  null,
+  2
+)}
+
+ESTADO DA CONVERSA:
+${JSON.stringify(
+  {
+    etapa_conversa: estado.etapa_conversa || "aberta",
+    ultima_intencao: estado.ultima_intencao || "duvida_geral",
+    ultimo_assunto: estado.ultimo_assunto || "indefinido",
+    precisa_followup: estado.precisa_followup ?? false,
+    ultimo_objetivo: estado.ultimo_objetivo || "manter_conversa"
   },
   null,
   2
@@ -48,16 +67,20 @@ REGRAS DE RESPOSTA:
 - Responda em português do Brasil.
 - Seja natural, claro e objetivo.
 - Use apenas as informações fornecidas pela empresa.
-- Não invente preços, regras ou serviços.
+- Não invente preços, regras, horários ou serviços.
 - Se não souber, diga que precisa confirmar com a equipe.
 - Use a análise da mensagem atual como sinal imediato.
 - Use o perfil acumulado do lead como base principal de modulação.
+- Use o estado da conversa para decidir o momento da condução.
 - Siga a estratégia dominante do lead ao formular a resposta.
-- Se o perfil estimado for D, seja mais direto e orientado à decisão.
+- Se o perfil estimado for D, seja mais direto, breve e orientado à decisão.
 - Se o perfil estimado for I, seja mais envolvente, leve e dinâmico.
 - Se o perfil estimado for S, seja mais acolhedor, calmo e seguro.
 - Se o perfil estimado for C, seja mais claro, lógico e detalhado.
 - Se o perfil for misto (DI, DC, IS, SC), combine os estilos com equilíbrio.
+- Se a etapa da conversa for "interesse", responda e tente avançar suavemente.
+- Se a etapa da conversa for "consideracao", responda e reduza dúvidas com clareza.
+- Se a etapa da conversa for "fechamento", responda e conduza para ação.
 - Foque em ajudar e conduzir a conversa.
 `;
 }

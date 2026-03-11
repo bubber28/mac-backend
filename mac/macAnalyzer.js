@@ -82,27 +82,90 @@ function analyzeMessage(mensagem = "") {
     intencaoDetectada = "explicacao";
   }
 
-  let perfilHipotese = "neutro";
+  let scoreD = 0;
+  let scoreI = 0;
+  let scoreS = 0;
+  let scoreC = 0;
 
-  if (objetividade === "alta" && formalidade !== "alta") {
-    perfilHipotese = "D";
-  } else if (temGirias && energia === "alta") {
-    perfilHipotese = "I";
-  } else if (formalidade === "alta" && tamanhoMensagem > 8) {
-    perfilHipotese = "C";
-  } else if (energia === "baixa" && formalidade === "média") {
-    perfilHipotese = "S";
-  } else if (formalidade === "alta" && objetividade === "baixa") {
-    perfilHipotese = "C/S";
+  // Sinais de D
+  if (objetividade === "alta") scoreD += 2;
+  if (objetividade === "média") scoreD += 1;
+  if (urgencia === "alta") scoreD += 1;
+  if (intencaoDetectada === "orcamento") scoreD += 1;
+
+  // Sinais de I
+  if (temGirias) scoreI += 2;
+  if (energia === "alta") scoreI += 2;
+  if (texto.includes("😊") || texto.includes("😅") || texto.includes("😂")) scoreI += 1;
+
+  // Sinais de S
+  if (energia === "baixa") scoreS += 2;
+  if (formalidade === "média") scoreS += 1;
+  if (textoMinusculo.includes("quero entender")) scoreS += 1;
+  if (intencaoDetectada === "disponibilidade") scoreS += 1;
+
+  // Sinais de C
+  if (formalidade === "alta") scoreC += 2;
+  if (objetividade === "baixa") scoreC += 2;
+  if (tamanhoMensagem > 10) scoreC += 1;
+  if (
+    textoMinusculo.includes("detalhe") ||
+    textoMinusculo.includes("explica") ||
+    textoMinusculo.includes("como funciona")
+  ) {
+    scoreC += 1;
+  }
+
+  let perfilHipotese = "N";
+
+  const scores = [
+    { perfil: "D", valor: scoreD },
+    { perfil: "I", valor: scoreI },
+    { perfil: "S", valor: scoreS },
+    { perfil: "C", valor: scoreC }
+  ].sort((a, b) => b.valor - a.valor);
+
+  const maior = scores[0];
+  const segundo = scores[1];
+
+  if (maior.valor === 0) {
+    perfilHipotese = "N";
+  } else if (segundo.valor > 0 && maior.valor - segundo.valor <= 1) {
+    const combinacao = `${maior.perfil}${segundo.perfil}`;
+
+    if (
+      combinacao === "DI" ||
+      combinacao === "ID" ||
+      combinacao === "DC" ||
+      combinacao === "CD" ||
+      combinacao === "IS" ||
+      combinacao === "SI" ||
+      combinacao === "SC" ||
+      combinacao === "CS"
+    ) {
+      if (combinacao === "ID") perfilHipotese = "DI";
+      else if (combinacao === "CD") perfilHipotese = "DC";
+      else if (combinacao === "SI") perfilHipotese = "IS";
+      else if (combinacao === "CS") perfilHipotese = "SC";
+      else perfilHipotese = combinacao;
+    } else {
+      perfilHipotese = maior.perfil;
+    }
+  } else {
+    perfilHipotese = maior.perfil;
   }
 
   let estrategia = "resposta_equilibrada";
 
   if (perfilHipotese === "D") estrategia = "resposta_curta_direta";
   if (perfilHipotese === "I") estrategia = "resposta_amigavel_dinamica";
-  if (perfilHipotese === "C") estrategia = "resposta_clara_detalhada";
   if (perfilHipotese === "S") estrategia = "resposta_calma_acolhedora";
-  if (perfilHipotese === "C/S") estrategia = "resposta_segura_organizada";
+  if (perfilHipotese === "C") estrategia = "resposta_clara_detalhada";
+  if (perfilHipotese === "DI") estrategia = "resposta_direta_com_energia";
+  if (perfilHipotese === "DC") estrategia = "resposta_curta_clara";
+  if (perfilHipotese === "IS") estrategia = "resposta_amigavel_empatica";
+  if (perfilHipotese === "SC") estrategia = "resposta_segura_organizada";
+  if (perfilHipotese === "N") estrategia = "resposta_equilibrada";
 
   if (intencaoDetectada === "agendamento") {
     estrategia = "conducao_para_fechamento";
@@ -118,6 +181,10 @@ function analyzeMessage(mensagem = "") {
     intencaoDetectada,
     temGirias,
     caixaAlta,
+    scoreD,
+    scoreI,
+    scoreS,
+    scoreC,
     perfilHipotese,
     estrategia
   };

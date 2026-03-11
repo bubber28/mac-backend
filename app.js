@@ -8,7 +8,8 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -26,6 +27,7 @@ app.get("/health", async (req, res) => {
       supabase_url: !!supabaseUrl,
       supabase_key: !!supabaseKey,
       gemini_key: !!geminiApiKey,
+      using_service_role: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       supabase_connection: false
     };
 
@@ -169,11 +171,14 @@ REGRAS:
     const result = await model.generateContent(prompt);
     const resposta = result.response.text().trim();
 
-    const { error: respostaError } = await supabase.rpc("registrar_resposta_mac", {
-      p_lead_id: leadId,
-      p_resposta: resposta,
-      p_tipo_mensagem: "texto"
-    });
+    const { error: respostaError } = await supabase.rpc(
+      "registrar_resposta_mac",
+      {
+        p_lead_id: leadId,
+        p_resposta: resposta,
+        p_tipo_mensagem: "texto"
+      }
+    );
 
     if (respostaError) {
       return res.status(500).json({

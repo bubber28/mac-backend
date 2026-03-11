@@ -16,7 +16,7 @@ const geminiApiKey = process.env.GEMINI_API_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 function criarRespostaFallback(contexto, mensagem, perfilLead = null, estadoConversa = null) {
   const empresa = contexto?.empresa || {};

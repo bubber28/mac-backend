@@ -2,6 +2,7 @@ const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { buildMacPrompt } = require("./mac/macPromptBuilder");
+const { analyzeMessage } = require("./mac/macAnalyzer");
 
 const app = express();
 app.use(express.json());
@@ -66,13 +67,20 @@ function criarRespostaFallback(contexto, mensagem) {
 }
 
 async function gerarRespostaComGemini(contexto, mensagem) {
+  const analiseMensagem = analyzeMessage(mensagem);
+
   const prompt = buildMacPrompt({
     contextoEmpresa: contexto,
-    mensagemCliente: mensagem
+    mensagemCliente: mensagem,
+    analiseMensagem
   });
 
   const result = await model.generateContent(prompt);
-  return result.response.text().trim();
+
+  return {
+    resposta: result.response.text().trim(),
+    analiseMensagem
+  };
 }
 
 app.get("/", (req, res) => {
@@ -132,9 +140,12 @@ app.get("/teste", async (req, res) => {
     const contexto = entradaData.contexto_empresa || {};
     let resposta = "";
     let origem_resposta = "gemini";
+    let analiseMensagem = analyzeMessage(mensagem);
 
     try {
-      resposta = await gerarRespostaComGemini(contexto, mensagem);
+      const resultadoIA = await gerarRespostaComGemini(contexto, mensagem);
+      resposta = resultadoIA.resposta;
+      analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
       resposta = criarRespostaFallback(contexto, mensagem);
@@ -162,7 +173,8 @@ app.get("/teste", async (req, res) => {
       lead_id: entradaData.lead_id,
       pergunta: mensagem,
       resposta,
-      origem_resposta
+      origem_resposta,
+      analiseMensagem
     });
   } catch (err) {
     return res.status(500).json({
@@ -213,9 +225,12 @@ app.post("/chat", async (req, res) => {
 
     let resposta = "";
     let origem_resposta = "gemini";
+    let analiseMensagem = analyzeMessage(mensagem);
 
     try {
-      resposta = await gerarRespostaComGemini(contexto, mensagem);
+      const resultadoIA = await gerarRespostaComGemini(contexto, mensagem);
+      resposta = resultadoIA.resposta;
+      analiseMensagem = resultadoIA.analiseMensagem;
     } catch (geminiError) {
       origem_resposta = "fallback";
       resposta = criarRespostaFallback(contexto, mensagem);
@@ -242,7 +257,8 @@ app.post("/chat", async (req, res) => {
       ok: true,
       lead_id: leadId,
       resposta,
-      origem_resposta
+      origem_resposta,
+      analiseMensagem
     });
   } catch (err) {
     return res.status(500).json({

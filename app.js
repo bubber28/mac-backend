@@ -1,6 +1,7 @@
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { buildMacPrompt } = require("./mac/macPromptBuilder");
 
 const app = express();
 app.use(express.json());
@@ -65,32 +66,10 @@ function criarRespostaFallback(contexto, mensagem) {
 }
 
 async function gerarRespostaComGemini(contexto, mensagem) {
-  const prompt = `
-Você é o M.A.C., atendente inteligente da empresa.
-
-DADOS DA EMPRESA:
-${JSON.stringify(contexto.empresa || {}, null, 2)}
-
-CONFIGURAÇÃO DO AGENTE:
-${JSON.stringify(contexto.config_mac || {}, null, 2)}
-
-SERVIÇOS DA EMPRESA:
-${JSON.stringify(contexto.servicos || [], null, 2)}
-
-FAQ:
-${JSON.stringify(contexto.faq || [], null, 2)}
-
-PERGUNTA DO CLIENTE:
-${mensagem}
-
-REGRAS:
-- Responda em português do Brasil.
-- Seja natural, claro e objetivo.
-- Use apenas as informações fornecidas pela empresa.
-- Não invente preços, regras ou serviços.
-- Se não souber, diga que precisa confirmar com a equipe.
-- Foque em ajudar e conduzir a conversa.
-`;
+  const prompt = buildMacPrompt({
+    contextoEmpresa: contexto,
+    mensagemCliente: mensagem
+  });
 
   const result = await model.generateContent(prompt);
   return result.response.text().trim();

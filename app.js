@@ -439,19 +439,29 @@ async function gerarRespostaComGemini(
   perfilLead = null,
   estadoConversa = null
 ) {
-  const prompt = buildMacPrompt({
-    contextoEmpresa: contexto,
-    mensagemCliente: mensagem,
-    analiseMensagem,
-    perfilLead,
-    estadoConversa
-  });
+  try {
+    const prompt = buildMacPrompt({
+      contextoEmpresa: contexto,
+      mensagemCliente: mensagem,
+      analiseMensagem,
+      perfilLead,
+      estadoConversa
+    });
 
-  const result = await model.generateContent(prompt);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt
+    });
 
-  return {
-    resposta: result.response.text().trim()
-  };
+    const texto = response?.text?.trim() || "";
+
+    return {
+      resposta: texto || "Desculpe, não consegui gerar uma resposta agora."
+    };
+  } catch (error) {
+    console.error("Erro Gemini:", error.message);
+    throw error;
+  }
 }
 
 app.get("/", (req, res) => {

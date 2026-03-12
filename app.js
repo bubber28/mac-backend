@@ -1,6 +1,6 @@
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 const { buildMacPrompt } = require("./mac/macPromptBuilder");
 const { analyzeMessage } = require("./mac/macAnalyzer");
 
@@ -15,8 +15,9 @@ const supabaseKey =
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+const ai = new GoogleGenAI({
+  apiKey: geminiApiKey
+});
 function criarRespostaFallback(contexto, mensagem, perfilLead = null, estadoConversa = null) {
   const empresa = contexto?.empresa || {};
   const servicos = contexto?.servicos || [];

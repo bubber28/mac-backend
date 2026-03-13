@@ -15,10 +15,17 @@ const supabaseKey =
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
 const ai = new GoogleGenAI({
   apiKey: geminiApiKey
 });
-function criarRespostaFallback(contexto, mensagem, perfilLead = null, estadoConversa = null) {
+
+function criarRespostaFallback(
+  contexto,
+  mensagem,
+  perfilLead = null,
+  estadoConversa = null
+) {
   const empresa = contexto?.empresa || {};
   const servicos = contexto?.servicos || [];
   const faq = contexto?.faq || [];
@@ -44,7 +51,7 @@ function criarRespostaFallback(contexto, mensagem, perfilLead = null, estadoConv
         return `${textoBase} Se quiser, também posso te explicar os próximos passos de atendimento.`;
       }
       if (perfil === "S" || perfil === "IS") {
-        return `${textoBase} Se quiser, posso seguir te ajudando com calma no próximo passo 😊`;
+        return `${textoBase} Se quiser, posso seguir te ajudando com calma 😊`;
       }
       if (perfil === "I") {
         return `${textoBase} Se quiser, já posso te passar o próximo passo 😊`;
@@ -116,9 +123,10 @@ function criarRespostaFallback(contexto, mensagem, perfilLead = null, estadoConv
   }
 
   if (msg.includes("sábado") || msg.includes("sabado")) {
-    const faqSabado = faq.find((f) =>
-      (f.pergunta || "").toLowerCase().includes("sábado") ||
-      (f.pergunta || "").toLowerCase().includes("sabado")
+    const faqSabado = faq.find(
+      (f) =>
+        (f.pergunta || "").toLowerCase().includes("sábado") ||
+        (f.pergunta || "").toLowerCase().includes("sabado")
     );
 
     if (faqSabado) {
@@ -149,24 +157,23 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem) return;
 
   const payload = {
-  lead_id: leadId,
-  mensagem_original: analiseMensagem.textoOriginal || null,
-  tamanho_mensagem: analiseMensagem.tamanhoMensagem || null,
-  objetividade: analiseMensagem.objetividade || null,
-  formalidade: analiseMensagem.formalidade || null,
-  energia: analiseMensagem.energia || null,
-  urgencia: analiseMensagem.urgencia || null,
-  intencao_detectada: analiseMensagem.intencaoDetectada || null,
-  tem_girias: analiseMensagem.temGirias ?? null,
-  caixa_alta: analiseMensagem.caixaAlta ?? null,
-  perfil_hipotese: analiseMensagem.perfilHipotese || null,
-  estrategia: analiseMensagem.estrategia || null,
-
-  score_d: analiseMensagem.scoreD || 0,
-  score_i: analiseMensagem.scoreI || 0,
-  score_s: analiseMensagem.scoreS || 0,
-  score_c: analiseMensagem.scoreC || 0
-};
+    lead_id: leadId,
+    mensagem_original: analiseMensagem.textoOriginal || null,
+    tamanho_mensagem: analiseMensagem.tamanhoMensagem || null,
+    objetividade: analiseMensagem.objetividade || null,
+    formalidade: analiseMensagem.formalidade || null,
+    energia: analiseMensagem.energia || null,
+    urgencia: analiseMensagem.urgencia || null,
+    intencao_detectada: analiseMensagem.intencaoDetectada || null,
+    tem_girias: analiseMensagem.temGirias ?? null,
+    caixa_alta: analiseMensagem.caixaAlta ?? null,
+    perfil_hipotese: analiseMensagem.perfilHipotese || null,
+    estrategia: analiseMensagem.estrategia || null,
+    score_d: analiseMensagem.scoreD || 0,
+    score_i: analiseMensagem.scoreI || 0,
+    score_s: analiseMensagem.scoreS || 0,
+    score_c: analiseMensagem.scoreC || 0
+  };
 
   const { error } = await supabase
     .from("analise_conversa_mac")
@@ -667,21 +674,4 @@ app.post("/chat", async (req, res) => {
 
     return res.json({
       ok: true,
-      lead_id: leadId,
-      resposta,
-      origem_resposta,
-      analiseMensagem,
-      perfilLead,
-      estadoConversa
-    });
-  } catch (err) {
-    return res.status(500).json({
-      error: "Erro interno no /chat",
-      details: err.message
-    });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`Servidor M.A.C. rodando na porta ${PORT}`);
-});
+      lea

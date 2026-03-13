@@ -674,4 +674,21 @@ app.post("/chat", async (req, res) => {
 
     return res.json({
       ok: true,
-      lea
+      lead_id: leadId,
+      resposta,
+      origem_resposta,
+      analiseMensagem,
+      perfilLead,
+      estadoConversa
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: "Erro interno no /chat",
+      details: err.message
+    });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`M.A.C. backend rodando na porta ${PORT}`);
+});

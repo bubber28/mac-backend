@@ -1,3 +1,4 @@
+const cors = require("cors");
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const { GoogleGenAI } = require("@google/genai");
@@ -5,8 +6,9 @@ const { buildMacPrompt } = require("./mac/macPromptBuilder");
 const { analyzeMessage } = require("./mac/macAnalyzer");
 
 const app = express();
-app.use(express.json());
 
+app.use(cors());
+app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 const supabaseUrl = process.env.SUPABASE_URL;

@@ -23,9 +23,112 @@ const ai = new GoogleGenAI({
   apiKey: geminiApiKey
 });
 
+function formatarPreco(valor) {
+  if (valor === null || valor === undefined || valor === "") {
+    return null;
+  }
+
+  const numero = Number(valor);
+
+  if (Number.isNaN(numero)) {
+    return `R$ ${valor}`;
+  }
+
+  return numero.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  });
+}
+
+function encontrarServicoPorMensagem(servicos = [], mensagem = "") {
+  const msg = (mensagem || "").toLowerCase().trim();
+  if (!msg || !Array.isArray(servicos) || servicos.length === 0) return null;
+
+  const servicosOrdenados = [...servicos].sort((a, b) => {
+    const nomeA = (a?.nome_servico || "").length;
+    const nomeB = (b?.nome_servico || "").length;
+    return nomeB - nomeA;
+  });
+
+  return (
+    servicosOrdenados.find((servico) => {
+      const nome = (servico?.nome_servico || "").toLowerCase().trim();
+      if (!nome) return false;
+      return msg.includes(nome);
+    }) || null
+  );
+}
+
+function validarRespostaMac(texto = "") {
+  const resposta = (texto || "").replace(/\s+/g, " ").trim();
+
+  if (!resposta) return false;
+  if (resposta.length < 12) return false;
+
+  const respostasGenericasRuins = [
+    "Entendi. Me diga exatamente o que você procura.",
+    "Entendi. Me diga exatamente o que você precisa.",
+    "Posso te ajudar com isso.",
+    "Me diga exatamente o que você precisa.",
+    "Entendi. Posso te ajudar.",
+    "Me diga o que você precisa."
+  ];
+
+  if (respostasGenericasRuins.includes(resposta)) {
+    return false;
+  }
+
+  const finaisValidos = [".", "!", "?", ".”", "!”", "?”"];
+  const terminouBem = finaisValidos.some((final) => resposta.endsWith(final));
+
+  if (!terminouBem) return false;
+
+  const ultimaPalavra = resposta.split(" ").pop() || "";
+  if (ultimaPalavra.length <= 2 && !/[.!?]$/.test(ultimaPalavra)) {
+    return false;
+  }
+
+  return true;
+}
+
+function extrairTextoGemini(response) {
+  if (!response) return "";
+
+  if (typeof response.text === "string" && response.text.trim()) {
+    return response.text.trim();
+  }
+
+  if (typeof response.text === "function") {
+    try {
+      const textoFn = response.text();
+      if (typeof textoFn === "string" && textoFn.trim()) {
+        return textoFn.trim();
+      }
+    } catch (error) {
+      // segue para fallback de extração
+    }
+  }
+
+  const parts = response?.candidates?.[0]?.content?.parts || [];
+
+  const textoParts = parts
+    .map((part) => part?.text || "")
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (textoParts) {
+    return textoParts;
+  }
+
+  return "";
+}
+
 function criarRespostaFallback({
   mensagem,
   empresa,
+  servicos = [],
+  faq = [],
   analiseMensagem,
   perfilLead = null,
   estadoConversa = null
@@ -76,7 +179,11 @@ function criarRespostaFallback({
     return neutra;
   }
 
-  function respostaSaudacao() {
+  const ehSaudacao =
+    saudacoes.some((s) => msg === s || msg.startsWith(`${s} `)) &&
+    msg.split(/\s+/).length <= 5;
+
+  if (ehSaudacao) {
     return modularTexto({
       neutra: "Olá! Como posso te ajudar?",
       direta: "Olá! Como posso te ajudar?",
@@ -85,16 +192,85 @@ function criarRespostaFallback({
     });
   }
 
-  function respostaCardapio() {
+  const servicoEncontrado = encontrarServicoPorMensagem(servicos, mensagem);
+
+  if (servicoEncontrado) {
+    const nomeServico = servicoEncontrado.nome_servico || "esse serviço";
+    const descricao =
+      servicoEncontrado.descricao ||
+      servicoEncontrado.descricao_servico ||
+      null;
+    const precoFormatado = formatarPreco(servicoEncontrado.preco);
+
+    if (intencao === "orcamento" && precoFormatado) {
+      return modularTexto({
+        neutra: `${nomeServico} custa ${precoFormatado}. Se quiser, também posso te explicar como funciona.`,
+        direta: `${nomeServico} custa ${precoFormatado}. Se quiser, já te explico o próximo passo.`,
+        acolhedora: `${nomeServico} custa ${precoFormatado}. 😊 Se quiser, também posso te explicar direitinho como funciona.`,
+        calorosa: `${nomeServico} custa ${precoFormatado}. 😊 Se quiser, eu também posso te explicar como funciona ou te ajudar com o próximo passo.`
+      });
+    }
+
+    if (intencao === "explicacao" || msg.includes("fazem") || msg.includes("tem ")) {
+      if (descricao) {
+        return modularTexto({
+          neutra: `Sim, fazemos ${nomeServico}. ${descricao} Se quiser, também posso te passar o valor.`,
+          direta: `Sim, fazemos ${nomeServico}. ${descricao} Se quiser, já te passo o valor.`,
+          acolhedora: `Sim, fazemos ${nomeServico}. ${descricao} Se quiser, também posso te passar o valor 😊`,
+          calorosa: `Sim! Fazemos ${nomeServico}. ${descricao} Se quiser, eu também posso te passar o valor 😊`
+        });
+      }
+
+      return modularTexto({
+        neutra: `Sim, fazemos ${nomeServico}. Se quiser, posso te explicar melhor como funciona ou te passar o valor.`,
+        direta: `Sim, fazemos ${nomeServico}. Se quiser, já te passo o valor.`,
+        acolhedora: `Sim, fazemos ${nomeServico}. Se quiser, posso te explicar melhor como funciona ou te passar o valor 😊`,
+        calorosa: `Sim! Fazemos ${nomeServico}. Se quiser, eu também posso te explicar como funciona ou te passar o valor 😊`
+      });
+    }
+
+    if (descricao) {
+      return modularTexto({
+        neutra: `${nomeServico} é um serviço que oferecemos na ${nomeEmpresa}. ${descricao}`,
+        direta: `${nomeServico} está disponível na ${nomeEmpresa}. ${descricao}`,
+        acolhedora: `${nomeServico} é um dos serviços que oferecemos na ${nomeEmpresa}. ${descricao}`,
+        calorosa: `${nomeServico} está disponível por aqui na ${nomeEmpresa}. ${descricao}`
+      });
+    }
+  }
+
+  const faqEncontrada = Array.isArray(faq)
+    ? faq.find((item) => {
+        const pergunta = (item?.pergunta || "").toLowerCase().trim();
+        if (!pergunta) return false;
+        return msg.includes(pergunta.replace("?", ""));
+      })
+    : null;
+
+  if (faqEncontrada?.resposta) {
+    return faqEncontrada.resposta;
+  }
+
+  if (
+    msg.includes("cardápio") ||
+    msg.includes("cardapio") ||
+    msg.includes("menu")
+  ) {
     return modularTexto({
-      neutra: `Claro! Temos opções disponíveis aqui na ${nomeEmpresa}. Você quer algo para agora ou para encomenda?`,
-      direta: `Temos opções disponíveis na ${nomeEmpresa}. Você quer algo para agora ou para encomenda?`,
-      acolhedora: `Claro! Temos opções disponíveis aqui na ${nomeEmpresa} 😊 Você quer algo para agora ou para encomenda?`,
-      calorosa: `Claro! 😊 Temos opções por aqui na ${nomeEmpresa}. Você quer algo para agora ou para encomenda?`
+      neutra: `Claro! Posso te mostrar o que temos disponível na ${nomeEmpresa}. Você quer algo para agora ou está buscando alguma opção específica?`,
+      direta: `Temos opções disponíveis na ${nomeEmpresa}. Você quer algo para agora ou alguma opção específica?`,
+      acolhedora: `Claro! 😊 Posso te mostrar o que temos disponível na ${nomeEmpresa}. Você quer algo para agora ou alguma opção específica?`,
+      calorosa: `Claro! 😊 Posso te mostrar o que temos disponível por aqui na ${nomeEmpresa}. Você quer algo para agora ou alguma opção específica?`
     });
   }
 
-  function respostaEncomenda() {
+  if (
+    msg.includes("encomenda") ||
+    msg.includes("festa") ||
+    msg.includes("anivers") ||
+    msg.includes("evento") ||
+    msg.includes("cento")
+  ) {
     return modularTexto({
       neutra:
         "Perfeito. Me diga para quantas pessoas é a encomenda ou o que você tem em mente que eu te ajudo.",
@@ -107,7 +283,13 @@ function criarRespostaFallback({
     });
   }
 
-  function respostaPreco() {
+  if (
+    msg.includes("preço") ||
+    msg.includes("preco") ||
+    msg.includes("valor") ||
+    msg.includes("quanto custa") ||
+    intencao === "orcamento"
+  ) {
     return modularTexto({
       neutra: `Posso te ajudar com os valores aqui na ${nomeEmpresa}. Me diga qual item ou serviço você quer consultar.`,
       direta:
@@ -119,7 +301,13 @@ function criarRespostaFallback({
     });
   }
 
-  function respostaAgendamento() {
+  if (
+    msg.includes("agendar") ||
+    msg.includes("horário") ||
+    msg.includes("horario") ||
+    msg.includes("marcar") ||
+    intencao === "agendamento"
+  ) {
     return modularTexto({
       neutra:
         "Posso te ajudar com isso. Me diga qual dia, horário ou serviço você tem em mente.",
@@ -131,118 +319,39 @@ function criarRespostaFallback({
     });
   }
 
-  function respostaGeral() {
-    if (etapa === "fechamento") {
-      return modularTexto({
-        neutra:
-          "Certo. Me diga só o que falta para eu te ajudar a concluir isso da melhor forma.",
-        direta: "Certo. Me diga o que falta para concluir.",
-        acolhedora:
-          "Certo 😊 Me diga só o que falta para eu te ajudar a concluir isso com tranquilidade.",
-        calorosa:
-          "Certo! 😊 Me conta o que falta que eu te ajudo a concluir isso."
-      });
-    }
-
-    if (etapa === "interesse" || etapa === "consideracao") {
-      return modularTexto({
-        neutra:
-          `Entendi. Posso te ajudar melhor se você me disser exatamente o que procura aqui na ${nomeEmpresa}.`,
-        direta: "Entendi. Me diga exatamente o que você procura.",
-        acolhedora:
-          `Entendi 😊 Me diga exatamente o que você procura aqui na ${nomeEmpresa}, que eu te ajudo da melhor forma.`,
-        calorosa:
-          `Entendi! 😊 Me conta o que você procura aqui na ${nomeEmpresa} que eu te ajudo.`
-      });
-    }
-
+  if (etapa === "fechamento") {
     return modularTexto({
       neutra:
-        `Entendi. Posso te ajudar aqui na ${nomeEmpresa}. Me diga um pouco melhor o que você precisa.`,
-      direta: "Entendi. Me diga exatamente o que você precisa.",
+        "Certo. Me diga só o que falta para eu te ajudar a concluir isso da melhor forma.",
+      direta: "Certo. Me diga o que falta para concluir.",
       acolhedora:
-        `Entendi 😊 Me diga um pouco melhor o que você precisa, que eu te ajudo da melhor forma.`,
+        "Certo 😊 Me diga só o que falta para eu te ajudar a concluir isso com tranquilidade.",
       calorosa:
-        `Entendi! 😊 Me conta melhor o que você precisa que eu te ajudo.`
+        "Certo! 😊 Me conta o que falta que eu te ajudo a concluir isso."
     });
   }
 
-  const ehSaudacao =
-    saudacoes.some((s) => msg.includes(s)) &&
-    msg.split(/\s+/).length <= 5;
-
-  if (ehSaudacao) {
-    return respostaSaudacao();
+  if (etapa === "interesse" || etapa === "consideracao") {
+    return modularTexto({
+      neutra:
+        `Entendi. Me fala qual serviço, produto ou informação você quer saber na ${nomeEmpresa} que eu te respondo de forma mais direta.`,
+      direta: "Entendi. Me diga qual serviço ou informação você quer saber.",
+      acolhedora:
+        `Entendi 😊 Me fala qual serviço, produto ou informação você quer saber na ${nomeEmpresa} que eu te respondo direitinho.`,
+      calorosa:
+        `Entendi! 😊 Me conta o que você quer saber na ${nomeEmpresa} que eu te ajudo por aqui.`
+    });
   }
 
-  if (
-    msg.includes("cardápio") ||
-    msg.includes("cardapio") ||
-    msg.includes("menu")
-  ) {
-    return respostaCardapio();
-  }
-
-  if (
-    msg.includes("encomenda") ||
-    msg.includes("festa") ||
-    msg.includes("anivers") ||
-    msg.includes("evento") ||
-    msg.includes("cento")
-  ) {
-    return respostaEncomenda();
-  }
-
-  if (
-    msg.includes("preço") ||
-    msg.includes("preco") ||
-    msg.includes("valor") ||
-    msg.includes("quanto custa") ||
-    intencao === "orcamento"
-  ) {
-    return respostaPreco();
-  }
-
-  if (
-    msg.includes("agendar") ||
-    msg.includes("horário") ||
-    msg.includes("horario") ||
-    msg.includes("marcar") ||
-    intencao === "agendamento"
-  ) {
-    return respostaAgendamento();
-  }
-
-  return respostaGeral();
-}
-
-function extrairTextoGemini(response) {
-  if (!response) return "";
-
-  if (typeof response.text === "string" && response.text.trim()) {
-    return response.text.trim();
-  }
-
-  if (typeof response.text === "function") {
-    const textoFn = response.text();
-    if (typeof textoFn === "string" && textoFn.trim()) {
-      return textoFn.trim();
-    }
-  }
-
-  const parts = response?.candidates?.[0]?.content?.parts || [];
-
-  const textoParts = parts
-    .map((part) => part?.text || "")
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (textoParts) {
-    return textoParts;
-  }
-
-  return "";
+  return modularTexto({
+    neutra:
+      `Entendi. Posso te ajudar aqui na ${nomeEmpresa}. Me diga um pouco melhor o que você precisa.`,
+    direta: "Entendi. Me diga exatamente o que você precisa.",
+    acolhedora:
+      `Entendi 😊 Me diga um pouco melhor o que você precisa, que eu te ajudo da melhor forma.`,
+    calorosa:
+      `Entendi! 😊 Me conta melhor o que você precisa que eu te ajudo.`
+  });
 }
 
 async function salvarAnaliseConversa(leadId, analiseMensagem) {
@@ -311,8 +420,7 @@ function calcularEstrategiaPorPerfil(perfil) {
   if (perfil === "DC") return "resposta_curta_clara";
   if (perfil === "IS") return "resposta_amigavel_empatica";
   if (perfil === "SC") return "resposta_segura_organizada";
-  return "resposta_equilibrada";
-}
+  return "resposta_equilibrada";}
 
 function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
   const total = (scoreD || 0) + (scoreI || 0) + (scoreS || 0) + (scoreC || 0);

@@ -9,6 +9,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
 const PORT = process.env.PORT || 3000;
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -26,10 +27,28 @@ function criarRespostaFallback({
   mensagem,
   empresa,
   analiseMensagem,
-  perfilLead
+  perfilLead = null,
+  estadoConversa = null
 }) {
-
   const msg = (mensagem || "").toLowerCase().trim();
+
+  const nomeEmpresa =
+    empresa?.nome ||
+    empresa?.nome_empresa ||
+    "nossa empresa";
+
+  const perfil =
+    perfilLead?.perfil_estimado ||
+    analiseMensagem?.perfilHipotese ||
+    "N";
+
+  const intencao =
+    analiseMensagem?.intencaoDetectada ||
+    "duvida_geral";
+
+  const etapa =
+    estadoConversa?.etapa_conversa ||
+    "aberta";
 
   const saudacoes = [
     "oi",
@@ -37,145 +56,156 @@ function criarRespostaFallback({
     "ola",
     "bom dia",
     "boa tarde",
-    "boa noite"
+    "boa noite",
+    "oii",
+    "eai",
+    "e aí"
   ];
 
-  // Resposta natural para abertura de conversa
-  if (
-    saudacoes.some(s => msg.includes(s)) &&
-    msg.split(" ").length <= 5
-  ) {
-    return "Olá! 😊 Como posso te ajudar?";
-  }
-
-  // Fallback geral mais humano
-  return "Entendi. Pode me contar um pouco melhor o que você precisa? Assim consigo te ajudar da melhor forma.";
-}
-  const empresa = contexto?.empresa || {};
-  const servicos = contexto?.servicos || [];
-  const faq = contexto?.faq || [];
-
-  const msg = mensagem.toLowerCase();
-  const perfil = perfilLead?.perfil_estimado || "N";
-  const etapa = estadoConversa?.etapa_conversa || "aberta";
-
-  function modularTexto(base, detalhada, acolhedora, dinamica) {
-    if (perfil === "D" || perfil === "DC" || perfil === "DI") return base;
-    if (perfil === "C" || perfil === "SC") return detalhada;
-    if (perfil === "S" || perfil === "IS") return acolhedora;
-    if (perfil === "I") return dinamica;
-    return base;
-  }
-
-  function adicionarConducao(textoBase) {
-    if (etapa === "interesse") {
-      if (perfil === "D" || perfil === "DC" || perfil === "DI") {
-        return `${textoBase} Quer que eu veja um horário disponível?`;
-      }
-      if (perfil === "C" || perfil === "SC") {
-        return `${textoBase} Se quiser, também posso te explicar os próximos passos de atendimento.`;
-      }
-      if (perfil === "S" || perfil === "IS") {
-        return `${textoBase} Se quiser, posso seguir te ajudando com calma 😊`;
-      }
-      if (perfil === "I") {
-        return `${textoBase} Se quiser, já posso te passar o próximo passo 😊`;
-      }
+  function modularTexto({
+    neutra,
+    direta,
+    acolhedora,
+    calorosa
+  }) {
+    if (perfil === "D" || perfil === "DC" || perfil === "DI") {
+      return direta || neutra;
     }
 
-    if (etapa === "consideracao") {
-      if (perfil === "D" || perfil === "DC" || perfil === "DI") {
-        return `${textoBase} Posso te passar o próximo passo objetivamente.`;
-      }
-      if (perfil === "C" || perfil === "SC") {
-        return `${textoBase} Se quiser, posso organizar melhor as informações para você.`;
-      }
-      if (perfil === "S" || perfil === "IS") {
-        return `${textoBase} Se quiser, sigo te explicando com calma 😊`;
-      }
-      if (perfil === "I") {
-        return `${textoBase} Se quiser, já continuo com mais detalhes 😊`;
-      }
+    if (perfil === "C" || perfil === "SC") {
+      return neutra;
     }
 
+    if (perfil === "S" || perfil === "IS") {
+      return acolhedora || neutra;
+    }
+
+    if (perfil === "I") {
+      return calorosa || acolhedora || neutra;
+    }
+
+    return neutra;
+  }
+
+  function respostaSaudacao() {
+    return modularTexto({
+      neutra: "Olá! Como posso te ajudar?",
+      direta: "Olá! Como posso te ajudar?",
+      acolhedora: "Olá! 😊 Como posso te ajudar?",
+      calorosa: "Oi! 😊 Como posso te ajudar hoje?"
+    });
+  }
+
+  function respostaCardapio() {
+    return modularTexto({
+      neutra: `Claro! Temos opções disponíveis aqui na ${nomeEmpresa}. Você quer algo para agora ou para encomenda?`,
+      direta: `Temos opções disponíveis na ${nomeEmpresa}. Você quer algo para agora ou para encomenda?`,
+      acolhedora: `Claro! Temos opções disponíveis aqui na ${nomeEmpresa} 😊 Você quer algo para agora ou para encomenda?`,
+      calorosa: `Claro! 😊 Temos opções por aqui na ${nomeEmpresa}. Você quer algo para agora ou para encomenda?`
+    });
+  }
+
+  function respostaEncomenda() {
+    return modularTexto({
+      neutra: "Perfeito. Me diga para quantas pessoas é a encomenda ou o que você tem em mente que eu te ajudo.",
+      direta: "Certo. Me diga a quantidade ou para quantas pessoas é a encomenda.",
+      acolhedora: "Perfeito 😊 Me diga para quantas pessoas é a encomenda ou o que você tem em mente que eu te ajudo.",
+      calorosa: "Perfeito! 😊 Me diga para quantas pessoas é a encomenda ou o que você gostaria de pedir."
+    });
+  }
+
+  function respostaPreco() {
+    return modularTexto({
+      neutra: `Posso te ajudar com os valores aqui na ${nomeEmpresa}. Me diga qual item ou serviço você quer consultar.`,
+      direta: "Me diga qual item ou serviço você quer consultar que eu te passo os valores.",
+      acolhedora: `Claro 😊 Posso te ajudar com os valores. Me diga qual item ou serviço você quer consultar.`,
+      calorosa: `Claro! 😊 Me diga qual item ou serviço você quer consultar que eu te ajudo com os valores.`
+    });
+  }
+
+  function respostaAgendamento() {
+    return modularTexto({
+      neutra: "Posso te ajudar com isso. Me diga qual dia, horário ou serviço você tem em mente.",
+      direta: "Me diga o dia, horário ou serviço que você quer.",
+      acolhedora: "Claro 😊 Posso te ajudar com isso. Me diga qual dia, horário ou serviço você está buscando.",
+      calorosa: "Claro! 😊 Me diga qual dia, horário ou serviço você tem em mente que eu te ajudo."
+    });
+  }
+
+  function respostaGeral() {
     if (etapa === "fechamento") {
-      if (perfil === "D" || perfil === "DC" || perfil === "DI") {
-        return `${textoBase} Posso seguir com o agendamento.`;
-      }
-      return `${textoBase} Se quiser, posso continuar com o agendamento.`;
+      return modularTexto({
+        neutra: "Certo. Me diga só o que falta para eu te ajudar a concluir isso da melhor forma.",
+        direta: "Certo. Me diga o que falta para concluir.",
+        acolhedora: "Certo 😊 Me diga só o que falta para eu te ajudar a concluir isso com tranquilidade.",
+        calorosa: "Certo! 😊 Me conta o que falta que eu te ajudo a concluir isso."
+      });
     }
 
-    return textoBase;
-  }
-
-  const servicoEncontrado = servicos.find((s) =>
-    msg.includes((s.nome_servico || "").toLowerCase())
-  );
-
-  if (servicoEncontrado) {
-    const preco =
-      servicoEncontrado.preco !== null && servicoEncontrado.preco !== undefined
-        ? `R$${servicoEncontrado.preco}`
-        : "valor sob consulta";
-
-    const tempo = servicoEncontrado.tempo_atendimento
-      ? `${servicoEncontrado.tempo_atendimento}`
-      : "tempo sob consulta";
-
-    const texto = modularTexto(
-      `${servicoEncontrado.nome_servico}: ${preco}. Duração média de ${tempo}.`,
-      `O serviço ${servicoEncontrado.nome_servico} custa ${preco} e tem duração média de ${tempo}. Se quiser, também posso te explicar melhor como funciona.`,
-      `Claro, posso te ajudar 😊 O serviço ${servicoEncontrado.nome_servico} custa ${preco} e dura cerca de ${tempo}.`,
-      `Fazemos sim 😊 O serviço ${servicoEncontrado.nome_servico} custa ${preco} e leva cerca de ${tempo}.`
-    );
-
-    return adicionarConducao(texto);
-  }
-
-  const faqEncontrada = faq.find((f) =>
-    msg.includes((f.pergunta || "").toLowerCase().split("?")[0])
-  );
-
-  if (faqEncontrada) {
-    const texto = modularTexto(
-      faqEncontrada.resposta,
-      `${faqEncontrada.resposta} Se quiser, posso detalhar melhor.`,
-      `${faqEncontrada.resposta} Qualquer coisa, sigo te ajudando com calma 😊`,
-      `${faqEncontrada.resposta} Se quiser, já posso te passar mais informações 😊`
-    );
-
-    return adicionarConducao(texto);
-  }
-
-  if (msg.includes("sábado") || msg.includes("sabado")) {
-    const faqSabado = faq.find(
-      (f) =>
-        (f.pergunta || "").toLowerCase().includes("sábado") ||
-        (f.pergunta || "").toLowerCase().includes("sabado")
-    );
-
-    if (faqSabado) {
-      const texto = modularTexto(
-        faqSabado.resposta,
-        `${faqSabado.resposta} Se quiser, posso detalhar horários e funcionamento.`,
-        `${faqSabado.resposta} Se quiser, te explico direitinho 😊`,
-        `${faqSabado.resposta} Se quiser, já te passo mais detalhes 😊`
-      );
-
-      return adicionarConducao(texto);
+    if (etapa === "interesse" || etapa === "consideracao") {
+      return modularTexto({
+        neutra: `Entendi. Posso te ajudar melhor se você me disser exatamente o que procura aqui na ${nomeEmpresa}.`,
+        direta: "Entendi. Me diga exatamente o que você procura.",
+        acolhedora: `Entendi 😊 Me diga exatamente o que você procura aqui na ${nomeEmpresa}, que eu te ajudo da melhor forma.`,
+        calorosa: `Entendi! 😊 Me conta o que você procura aqui na ${nomeEmpresa} que eu te ajudo.`
+      });
     }
+
+    return modularTexto({
+      neutra: `Entendi. Posso te ajudar aqui na ${nomeEmpresa}. Me diga um pouco melhor o que você precisa.`,
+      direta: "Entendi. Me diga exatamente o que você precisa.",
+      acolhedora: `Entendi 😊 Me diga um pouco melhor o que você precisa, que eu te ajudo da melhor forma.`,
+      calorosa: `Entendi! 😊 Me conta melhor o que você precisa que eu te ajudo.`
+    });
   }
 
-  const nomeEmpresa = empresa.nome_empresa || "a empresa";
+  const ehSaudacao =
+    saudacoes.some((s) => msg.includes(s)) &&
+    msg.split(/\s+/).length <= 5;
 
-  const textoBase = modularTexto(
-    `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso seguir com informações básicas ou encaminhar sua dúvida para confirmação da equipe.`,
-    `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso continuar com informações básicas da empresa ou detalhar sua dúvida para confirmação da equipe.`,
-    `Recebi sua mensagem e já registrei seu atendimento com ${nomeEmpresa}. Vou seguir te ajudando com as informações disponíveis 😊`,
-    `Recebi sua mensagem e registrei seu atendimento com ${nomeEmpresa}. Posso continuar te ajudando por aqui 😊`
-  );
+  if (ehSaudacao) {
+    return respostaSaudacao();
+  }
 
-  return adicionarConducao(textoBase);
+  if (
+    msg.includes("cardápio") ||
+    msg.includes("cardapio") ||
+    msg.includes("menu")
+  ) {
+    return respostaCardapio();
+  }
+
+  if (
+    msg.includes("encomenda") ||
+    msg.includes("festa") ||
+    msg.includes("anivers") ||
+    msg.includes("evento") ||
+    msg.includes("cento")
+  ) {
+    return respostaEncomenda();
+  }
+
+  if (
+    msg.includes("preço") ||
+    msg.includes("preco") ||
+    msg.includes("valor") ||
+    msg.includes("quanto custa") ||
+    intencao === "orcamento"
+  ) {
+    return respostaPreco();
+  }
+
+  if (
+    msg.includes("agendar") ||
+    msg.includes("horário") ||
+    msg.includes("horario") ||
+    msg.includes("marcar") ||
+    intencao === "agendamento"
+  ) {
+    return respostaAgendamento();
+  }
+
+  return respostaGeral();
 }
 
 async function salvarAnaliseConversa(leadId, analiseMensagem) {
@@ -477,23 +507,31 @@ async function gerarRespostaComGemini(
   estadoConversa = null
 ) {
   try {
+    const prompt = buildMacPrompt({
+      contextoEmpresa: contexto,
+      mensagemCliente: mensagem,
+      analiseMensagem,
+      perfilLead,
+      estadoConversa
+    });
+
     const response = await ai.models.generateContent({
-  model: "gemini-2.5-flash",
-  contents: prompt,
-  config: {
-    temperature: 0.7,
-    topP: 0.9,
-    maxOutputTokens: 300
-  }
-});
-    
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+        topP: 0.9,
+        maxOutputTokens: 300
+      }
+    });
+
     const texto = response?.text?.trim() || "";
 
     return {
       resposta: texto || "Desculpe, não consegui gerar uma resposta agora."
     };
   } catch (error) {
-    console.error("Erro Gemini:", error.message);
+    console.error("Erro Gemini:", error);
     throw error;
   }
 }
@@ -575,8 +613,14 @@ app.get("/teste", async (req, res) => {
       resposta = resultadoIA.resposta;
     } catch (geminiError) {
       origem_resposta = "fallback";
-      resposta = criarRespostaFallback(contexto, mensagem, perfilLead, estadoConversa);
-      console.error("Erro Gemini /teste:", geminiError.message);
+      resposta = criarRespostaFallback({
+        mensagem,
+        empresa: contexto?.empresa || {},
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      });
+      console.error("Erro Gemini /teste:", geminiError);
     }
 
     const { error: respostaError } = await supabase.rpc(
@@ -661,56 +705,4 @@ app.post("/chat", async (req, res) => {
     await atualizarEstadoConversaLead(leadId, analiseMensagem);
 
     const perfilLead = await buscarPerfilLead(leadId);
-    const estadoConversa = await buscarEstadoConversaLead(leadId);
-
-    try {
-      const resultadoIA = await gerarRespostaComGemini(
-        contexto,
-        mensagem,
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      );
-      resposta = resultadoIA.resposta;
-    } catch (geminiError) {
-      origem_resposta = "fallback";
-      resposta = criarRespostaFallback(contexto, mensagem, perfilLead, estadoConversa);
-      console.error("Erro Gemini /chat:", geminiError.message);
-    }
-
-    const { error: respostaError } = await supabase.rpc(
-      "registrar_resposta_mac",
-      {
-        p_lead_id: leadId,
-        p_resposta: resposta,
-        p_tipo_mensagem: "texto"
-      }
-    );
-
-    if (respostaError) {
-      return res.status(500).json({
-        error: "Erro ao salvar resposta do M.A.C.",
-        details: respostaError.message
-      });
-    }
-
-    return res.json({
-      ok: true,
-      lead_id: leadId,
-      resposta,
-      origem_resposta,
-      analiseMensagem,
-      perfilLead,
-      estadoConversa
-    });
-  } catch (err) {
-    return res.status(500).json({
-      error: "Erro interno no /chat",
-      details: err.message
-    });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`M.A.C. backend rodando na porta ${PORT}`);
-});
+    const estadoConversa = await bus

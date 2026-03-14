@@ -42,7 +42,10 @@ function formatarPreco(valor) {
 
 function encontrarServicoPorMensagem(servicos = [], mensagem = "") {
   const msg = (mensagem || "").toLowerCase().trim();
-  if (!msg || !Array.isArray(servicos) || servicos.length === 0) return null;
+
+  if (!msg || !Array.isArray(servicos) || servicos.length === 0) {
+    return null;
+  }
 
   const servicosOrdenados = [...servicos].sort((a, b) => {
     const nomeA = (a?.nome_servico || "").length;
@@ -71,7 +74,9 @@ function validarRespostaMac(texto = "") {
     "Posso te ajudar com isso.",
     "Me diga exatamente o que você precisa.",
     "Entendi. Posso te ajudar.",
-    "Me diga o que você precisa."
+    "Me diga o que você precisa.",
+    "Entendi. Me diga qual serviço ou informação você quer saber.",
+    "Me diga qual item ou serviço você quer consultar que eu te passo os valores."
   ];
 
   if (respostasGenericasRuins.includes(resposta)) {
@@ -211,7 +216,13 @@ function criarRespostaFallback({
       });
     }
 
-    if (intencao === "explicacao" || msg.includes("fazem") || msg.includes("tem ")) {
+    if (
+      intencao === "explicacao" ||
+      msg.includes("fazem") ||
+      msg.includes("tem ") ||
+      msg.includes("vocês fazem") ||
+      msg.includes("voces fazem")
+    ) {
       if (descricao) {
         return modularTexto({
           neutra: `Sim, fazemos ${nomeServico}. ${descricao} Se quiser, também posso te passar o valor.`,
@@ -420,7 +431,8 @@ function calcularEstrategiaPorPerfil(perfil) {
   if (perfil === "DC") return "resposta_curta_clara";
   if (perfil === "IS") return "resposta_amigavel_empatica";
   if (perfil === "SC") return "resposta_segura_organizada";
-  return "resposta_equilibrada";}
+  return "resposta_equilibrada";
+}
 
 function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
   const total = (scoreD || 0) + (scoreI || 0) + (scoreS || 0) + (scoreC || 0);
@@ -612,22 +624,6 @@ async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
   }
 }
 
-async function buscarPerfilLead(leadId) {
-  if (!leadId) return null;
-
-  const { data, error } = await supabase
-    .from("perfil_lead_mac")
-    .select("*")
-    .eq("lead_id", leadId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Erro ao buscar perfil do lead: ${error.message}`);
-  }
-
-  return data || null;
-}
-
 async function buscarEstadoConversaLead(leadId) {
   if (!leadId) return null;
 
@@ -746,28 +742,61 @@ app.get("/teste", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
+    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
+    const faq = contexto?.faq || contexto?.faq_empresa || [];
+    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
+
     let resposta = "";
     let origem_resposta = "gemini";
 
-    try {
-      const resultadoIA = await gerarRespostaComGemini(
-        contexto,
-        mensagem,
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      );
-      resposta = resultadoIA.resposta;
-    } catch (geminiError) {
-      origem_resposta = "fallback";
-      resposta = criarRespostaFallback({
-        mensagem,
-        empresa: contexto?.empresa || {},
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      });
-      console.error("Erro Gemini /teste:", geminiError);
+    if (servicoDetectado && analiseMensagem.intencaoDetectada === "orcamento") {
+      const preco = formatarPreco(servicoDetectado.preco);
+      const descricao = (servicoDetectado.descricao || "").trim();
+
+      resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""} Se quiser, posso te explicar como funciona ou verificar horários disponíveis.`;
+      origem_resposta = "banco";
+    }
+
+    if (
+      servicoDetectado &&
+      analiseMensagem.intencaoDetectada === "explicacao" &&
+      !resposta
+    ) {
+      const descricao = (servicoDetectado.descricao || "").trim();
+      const preco = formatarPreco(servicoDetectado.preco);
+
+      resposta = `Sim, realizamos ${servicoDetectado.nome_servico}.${descricao ? ` ${descricao}` : ""}${preco ? ` Se quiser, também posso te passar o valor: ${preco}.` : ""}`;
+      origem_resposta = "banco";
+    }
+
+    if (!resposta) {
+      try {
+        const resultadoIA = await gerarRespostaComGemini(
+          contexto,
+          mensagem,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        );
+
+        resposta = resultadoIA.resposta;
+
+        if (!validarRespostaMac(resposta)) {
+          throw new Error("Resposta do Gemini inválida ou genérica");
+        }
+      } catch (geminiError) {
+        origem_resposta = "fallback";
+        resposta = criarRespostaFallback({
+          mensagem,
+          empresa: contexto?.empresa || {},
+          servicos,
+          faq,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        });
+        console.error("Erro Gemini /teste:", geminiError);
+      }
     }
 
     const { error: respostaError } = await supabase.rpc(
@@ -829,7 +858,7 @@ app.post("/chat", async (req, res) => {
         p_telefone: telefone,
         p_canal: canal,
         p_mensagem: mensagem,
-       p_tipo_mensagem: tipo_mensagem
+        p_tipo_mensagem: tipo_mensagem
       }
     );
 
@@ -851,31 +880,63 @@ app.post("/chat", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
+    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
+    const faq = contexto?.faq || contexto?.faq_empresa || [];
+    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
+
     let resposta = "";
     let origem_resposta = "gemini";
 
-    try {
-      const resultadoIA = await gerarRespostaComGemini(
-        contexto,
-        mensagem,
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      );
+    if (servicoDetectado && analiseMensagem.intencaoDetectada === "orcamento") {
+      const preco = formatarPreco(servicoDetectado.preco);
+      const descricao = (servicoDetectado.descricao || "").trim();
 
-      resposta = resultadoIA.resposta;
-    } catch (geminiError) {
-      origem_resposta = "fallback";
+      resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""} Se quiser, posso te explicar como funciona ou verificar horários disponíveis.`;
+      origem_resposta = "banco";
+    }
 
-      resposta = criarRespostaFallback({
-        mensagem,
-        empresa: contexto?.empresa || {},
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      });
+    if (
+      servicoDetectado &&
+      analiseMensagem.intencaoDetectada === "explicacao" &&
+      !resposta
+    ) {
+      const descricao = (servicoDetectado.descricao || "").trim();
+      const preco = formatarPreco(servicoDetectado.preco);
 
-      console.error("Erro Gemini /chat:", geminiError);
+      resposta = `Sim, realizamos ${servicoDetectado.nome_servico}.${descricao ? ` ${descricao}` : ""}${preco ? ` Se quiser, também posso te passar o valor: ${preco}.` : ""}`;
+      origem_resposta = "banco";
+    }
+
+    if (!resposta) {
+      try {
+        const resultadoIA = await gerarRespostaComGemini(
+          contexto,
+          mensagem,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        );
+
+        resposta = resultadoIA.resposta;
+
+        if (!validarRespostaMac(resposta)) {
+          throw new Error("Resposta do Gemini inválida ou genérica");
+        }
+      } catch (geminiError) {
+        origem_resposta = "fallback";
+
+        resposta = criarRespostaFallback({
+          mensagem,
+          empresa: contexto?.empresa || {},
+          servicos,
+          faq,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        });
+
+        console.error("Erro Gemini /chat:", geminiError);
+      }
     }
 
     const { error: respostaError } = await supabase.rpc(

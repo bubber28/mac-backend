@@ -454,14 +454,15 @@ async function gerarRespostaComGemini(
   estadoConversa = null
 ) {
   try {
-    const prompt = buildMacPrompt({
-      contextoEmpresa: contexto,
-      mensagemCliente: mensagem,
-      analiseMensagem,
-      perfilLead,
-      estadoConversa
-    });
-
+    const response = await ai.models.generateContent({
+  model: "gemini-2.5-flash",
+  contents: prompt,
+  config: {
+    temperature: 0.7,
+    topP: 0.9,
+    maxOutputTokens: 300
+  }
+});
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt

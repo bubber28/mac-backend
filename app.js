@@ -639,7 +639,21 @@ async function buscarEstadoConversaLead(leadId) {
 
   return data || null;
 }
+async function buscarPerfilLead(leadId) {
+  if (!leadId) return null;
 
+  const { data, error } = await supabase
+    .from("perfil_lead_mac")
+    .select("*")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Erro ao buscar perfil do lead: ${error.message}`);
+  }
+
+  return data || null;
+}
 async function gerarRespostaComGemini(
   contexto,
   mensagem,

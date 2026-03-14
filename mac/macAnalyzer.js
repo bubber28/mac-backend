@@ -49,36 +49,95 @@ function analyzeMessage(mensagem = "") {
     urgencia = "alta";
   }
 
-  let intencaoDetectada = "duvida_geral";
+  const ehSaudacao =
+    [
+      "oi",
+      "olá",
+      "ola",
+      "bom dia",
+      "boa tarde",
+      "boa noite",
+      "oi tudo bem",
+      "oii"
+    ].includes(textoMinusculo) ||
+    (["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"].some((s) =>
+      textoMinusculo === s
+    ));
 
-  if (
+  const temPalavraPreco =
     textoMinusculo.includes("quanto custa") ||
     textoMinusculo.includes("valor") ||
     textoMinusculo.includes("preço") ||
-    textoMinusculo.includes("preco")
-  ) {
-    intencaoDetectada = "orcamento";
-  } else if (
+    textoMinusculo.includes("preco") ||
+    textoMinusculo.includes("orçamento") ||
+    textoMinusculo.includes("orcamento");
+
+  const temPalavraDisponibilidade =
     textoMinusculo.includes("horário") ||
     textoMinusculo.includes("horario") ||
     textoMinusculo.includes("atendem") ||
+    textoMinusculo.includes("funciona") ||
+    textoMinusculo.includes("aberto") ||
+    textoMinusculo.includes("fechado") ||
     textoMinusculo.includes("sábado") ||
-    textoMinusculo.includes("sabado")
-  ) {
-    intencaoDetectada = "disponibilidade";
-  } else if (
+    textoMinusculo.includes("sabado") ||
+    textoMinusculo.includes("domingo");
+
+  const temPalavraAgendamento =
     textoMinusculo.includes("agendar") ||
     textoMinusculo.includes("marcar") ||
     textoMinusculo.includes("quero fazer") ||
-    textoMinusculo.includes("posso marcar")
-  ) {
-    intencaoDetectada = "agendamento";
-  } else if (
+    textoMinusculo.includes("posso marcar") ||
+    textoMinusculo.includes("quero agendar") ||
+    textoMinusculo.includes("quero marcar");
+
+  const temPalavraExplicacao =
     textoMinusculo.includes("como funciona") ||
     textoMinusculo.includes("o que é") ||
     textoMinusculo.includes("explica") ||
-    textoMinusculo.includes("me explica")
-  ) {
+    textoMinusculo.includes("me explica") ||
+    textoMinusculo.includes("quero entender") ||
+    textoMinusculo.includes("me fala mais");
+
+  const temConfirmacaoServico =
+    textoMinusculo.includes("vocês fazem") ||
+    textoMinusculo.includes("voces fazem") ||
+    textoMinusculo.includes("fazem ") ||
+    textoMinusculo.includes("tem ") ||
+    textoMinusculo.includes("vocês têm") ||
+    textoMinusculo.includes("voces tem") ||
+    textoMinusculo.includes("trabalham com") ||
+    textoMinusculo.includes("oferecem") ||
+    textoMinusculo.includes("faz esse") ||
+    textoMinusculo.includes("fazem esse") ||
+    textoMinusculo.includes("tem esse") ||
+    textoMinusculo.includes("tem essa") ||
+    textoMinusculo.includes("faz limpeza") ||
+    textoMinusculo.includes("tem limpeza");
+
+  const temEncomendaEvento =
+    textoMinusculo.includes("encomenda") ||
+    textoMinusculo.includes("festa") ||
+    textoMinusculo.includes("evento") ||
+    textoMinusculo.includes("anivers") ||
+    textoMinusculo.includes("cento") ||
+    textoMinusculo.includes("quantidade");
+
+  let intencaoDetectada = "duvida_geral";
+
+  if (ehSaudacao) {
+    intencaoDetectada = "saudacao";
+  } else if (temPalavraPreco) {
+    intencaoDetectada = "orcamento";
+  } else if (temPalavraAgendamento) {
+    intencaoDetectada = "agendamento";
+  } else if (temPalavraDisponibilidade) {
+    intencaoDetectada = "disponibilidade";
+  } else if (temEncomendaEvento) {
+    intencaoDetectada = "orcamento";
+  } else if (temConfirmacaoServico) {
+    intencaoDetectada = "explicacao";
+  } else if (temPalavraExplicacao) {
     intencaoDetectada = "explicacao";
   }
 
@@ -87,24 +146,22 @@ function analyzeMessage(mensagem = "") {
   let scoreS = 0;
   let scoreC = 0;
 
-  // Sinais de D
   if (objetividade === "alta") scoreD += 2;
   if (objetividade === "média") scoreD += 1;
   if (urgencia === "alta") scoreD += 1;
   if (intencaoDetectada === "orcamento") scoreD += 1;
+  if (intencaoDetectada === "agendamento") scoreD += 1;
 
-  // Sinais de I
   if (temGirias) scoreI += 2;
   if (energia === "alta") scoreI += 2;
   if (texto.includes("😊") || texto.includes("😅") || texto.includes("😂")) scoreI += 1;
+  if (ehSaudacao) scoreI += 1;
 
-  // Sinais de S
   if (energia === "baixa") scoreS += 2;
   if (formalidade === "média") scoreS += 1;
   if (textoMinusculo.includes("quero entender")) scoreS += 1;
   if (intencaoDetectada === "disponibilidade") scoreS += 1;
 
-  // Sinais de C
   if (formalidade === "alta") scoreC += 2;
   if (objetividade === "baixa") scoreC += 2;
   if (tamanhoMensagem > 10) scoreC += 1;
@@ -169,6 +226,10 @@ function analyzeMessage(mensagem = "") {
 
   if (intencaoDetectada === "agendamento") {
     estrategia = "conducao_para_fechamento";
+  }
+
+  if (intencaoDetectada === "saudacao") {
+    estrategia = "abertura_social";
   }
 
   return {

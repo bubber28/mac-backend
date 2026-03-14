@@ -234,7 +234,8 @@ function extrairTextoGemini(response) {
 
   const textoParts = parts
     .map((part) => part?.text || "")
-    .join("")
+    .join(" ")
+    .replace(/\s+/g, " ")
     .trim();
 
   if (textoParts) {
@@ -534,54 +535,7 @@ async function buscarEstadoConversaLead(leadId) {
 
   return data || null;
 }
-function extrairTextoGemini(response) {
-  if (!response) return "";
 
-  if (typeof response.text === "string" && response.text.trim()) {
-    return response.text.trim();
-  }
-
-  if (typeof response.text === "function") {
-    const textoFn = response.text();
-    if (typeof textoFn === "string" && textoFn.trim()) {
-      return textoFn.trim();
-    }
-  }
-
-  const textos = [];
-
-  function coletarTexto(valor) {
-    if (!valor) return;
-
-    if (typeof valor === "string") {
-      const t = valor.trim();
-      if (t) textos.push(t);
-      return;
-    }
-
-    if (Array.isArray(valor)) {
-      for (const item of valor) {
-        coletarTexto(item);
-      }
-      return;
-    }
-
-    if (typeof valor === "object") {
-      if (typeof valor.text === "string" && valor.text.trim()) {
-        textos.push(valor.text.trim());
-      }
-
-      for (const chave of Object.keys(valor)) {
-        coletarTexto(valor[chave]);
-      }
-    }
-  }
-
-  coletarTexto(response?.candidates);
-
-  const textoFinal = textos.join(" ").replace(/\s+/g, " ").trim();
-  return textoFinal;
-}
 async function gerarRespostaComGemini(
   contexto,
   mensagem,
@@ -759,7 +713,7 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-   const { data: entradaData, error: entradaError } = await supabase.rpc(
+    const { data: entradaData, error: entradaError } = await supabase.rpc(
       "registrar_entrada_mensagem",
       {
         p_empresa_id: empresa_id,
@@ -767,7 +721,7 @@ app.post("/chat", async (req, res) => {
         p_telefone: telefone,
         p_canal: canal,
         p_mensagem: mensagem,
-        p_tipo_mensagem: tipo_mensagem
+       p_tipo_mensagem: tipo_mensagem
       }
     );
 

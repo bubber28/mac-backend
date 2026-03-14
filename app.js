@@ -22,12 +22,35 @@ const ai = new GoogleGenAI({
   apiKey: geminiApiKey
 });
 
-function criarRespostaFallback(
-  contexto,
+function criarRespostaFallback({
   mensagem,
-  perfilLead = null,
-  estadoConversa = null
-) {
+  empresa,
+  analiseMensagem,
+  perfilLead
+}) {
+
+  const msg = (mensagem || "").toLowerCase().trim();
+
+  const saudacoes = [
+    "oi",
+    "olá",
+    "ola",
+    "bom dia",
+    "boa tarde",
+    "boa noite"
+  ];
+
+  // Resposta natural para abertura de conversa
+  if (
+    saudacoes.some(s => msg.includes(s)) &&
+    msg.split(" ").length <= 5
+  ) {
+    return "Olá! 😊 Como posso te ajudar?";
+  }
+
+  // Fallback geral mais humano
+  return "Entendi. Pode me contar um pouco melhor o que você precisa? Assim consigo te ajudar da melhor forma.";
+}
   const empresa = contexto?.empresa || {};
   const servicos = contexto?.servicos || [];
   const faq = contexto?.faq || [];

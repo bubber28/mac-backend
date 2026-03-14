@@ -591,16 +591,18 @@ app.get("/teste", async (req, res) => {
     }
 
     const contexto = entradaData.contexto_empresa || {};
-    let resposta = "";
-    let origem_resposta = "gemini";
+    const leadId = entradaData.lead_id;
     const analiseMensagem = analyzeMessage(mensagem);
 
-    await salvarAnaliseConversa(entradaData.lead_id, analiseMensagem);
-    await atualizarPerfilLead(entradaData.lead_id, analiseMensagem);
-    await atualizarEstadoConversaLead(entradaData.lead_id, analiseMensagem);
+    await salvarAnaliseConversa(leadId, analiseMensagem);
+    await atualizarPerfilLead(leadId, analiseMensagem);
+    await atualizarEstadoConversaLead(leadId, analiseMensagem);
 
-    const perfilLead = await buscarPerfilLead(entradaData.lead_id);
-    const estadoConversa = await buscarEstadoConversaLead(entradaData.lead_id);
+    const perfilLead = await buscarPerfilLead(leadId);
+    const estadoConversa = await buscarEstadoConversaLead(leadId);
+
+    let resposta = "";
+    let origem_resposta = "gemini";
 
     try {
       const resultadoIA = await gerarRespostaComGemini(
@@ -626,7 +628,7 @@ app.get("/teste", async (req, res) => {
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",
       {
-        p_lead_id: entradaData.lead_id,
+        p_lead_id: leadId,
         p_resposta: resposta,
         p_tipo_mensagem: "texto"
       }
@@ -641,7 +643,7 @@ app.get("/teste", async (req, res) => {
 
     return res.json({
       ok: true,
-      lead_id: entradaData.lead_id,
+      lead_id: leadId,
       pergunta: mensagem,
       resposta,
       origem_resposta,
@@ -695,9 +697,6 @@ app.post("/chat", async (req, res) => {
 
     const leadId = entradaData.lead_id;
     const contexto = entradaData.contexto_empresa || {};
-
-    let resposta = "";
-    let origem_resposta = "gemini";
     const analiseMensagem = analyzeMessage(mensagem);
 
     await salvarAnaliseConversa(leadId, analiseMensagem);
@@ -705,4 +704,75 @@ app.post("/chat", async (req, res) => {
     await atualizarEstadoConversaLead(leadId, analiseMensagem);
 
     const perfilLead = await buscarPerfilLead(leadId);
-    const estadoConversa = await bus
+    const estadoConversa = await buscarEstadoConversaLead(leadId);
+
+    let resposta = "";
+    let origem_resposta = "gemini";
+
+    try {
+
+  const resultadoIA = await gerarRespostaComGemini(
+    contexto,
+    mensagem,
+    analiseMensagem,
+    perfilLead,
+    estadoConversa
+  );
+
+  resposta = resultadoIA.resposta;
+
+} catch (geminiError) {
+
+  origem_resposta = "fallback";
+
+  resposta = criarRespostaFallback({
+    mensagem,
+    empresa: contexto?.empresa || {},
+    analiseMensagem,
+    perfilLead,
+    estadoConversa
+  });
+
+  console.error("Erro Gemini /chat:", geminiError);
+}
+
+const { error: respostaError } = await supabase.rpc(
+  "registrar_resposta_mac",
+  {
+    p_lead_id: leadId,
+    p_resposta: resposta,
+    p_tipo_mensagem: tipo_mensagem
+  }
+);
+
+if (respostaError) {
+  return res.status(500).json({
+    error: "Erro ao salvar resposta do M.A.C.",
+    details: respostaError.message
+  });
+}
+
+return res.json({
+  ok: true,
+  lead_id: leadId,
+  resposta,
+  origem_resposta,
+  analiseMensagem,
+  perfilLead,
+  estadoConversa
+});
+
+} catch (err) {
+
+  return res.status(500).json({
+    error: "Erro interno no /chat",
+    details: err.message
+  });
+
+}
+
+});
+
+app.listen(PORT, () => {
+  console.log(`M.A.C. backend rodando na porta ${PORT}`);
+});

@@ -534,7 +534,54 @@ async function buscarEstadoConversaLead(leadId) {
 
   return data || null;
 }
+function extrairTextoGemini(response) {
+  if (!response) return "";
 
+  if (typeof response.text === "string" && response.text.trim()) {
+    return response.text.trim();
+  }
+
+  if (typeof response.text === "function") {
+    const textoFn = response.text();
+    if (typeof textoFn === "string" && textoFn.trim()) {
+      return textoFn.trim();
+    }
+  }
+
+  const textos = [];
+
+  function coletarTexto(valor) {
+    if (!valor) return;
+
+    if (typeof valor === "string") {
+      const t = valor.trim();
+      if (t) textos.push(t);
+      return;
+    }
+
+    if (Array.isArray(valor)) {
+      for (const item of valor) {
+        coletarTexto(item);
+      }
+      return;
+    }
+
+    if (typeof valor === "object") {
+      if (typeof valor.text === "string" && valor.text.trim()) {
+        textos.push(valor.text.trim());
+      }
+
+      for (const chave of Object.keys(valor)) {
+        coletarTexto(valor[chave]);
+      }
+    }
+  }
+
+  coletarTexto(response?.candidates);
+
+  const textoFinal = textos.join(" ").replace(/\s+/g, " ").trim();
+  return textoFinal;
+}
 async function gerarRespostaComGemini(
   contexto,
   mensagem,
@@ -557,11 +604,11 @@ async function gerarRespostaComGemini(
       config: {
         temperature: 0.7,
         topP: 0.9,
-        maxOutputTokens: 300
+        maxOutputTokens: 700
       }
     });
 
-    const texto = response?.text?.trim() || "";
+    const texto = extrairTextoGemini(response);
 
     return {
       resposta: texto || "Desculpe, não consegui gerar uma resposta agora."

@@ -33,22 +33,16 @@ function criarRespostaFallback({
   const msg = (mensagem || "").toLowerCase().trim();
 
   const nomeEmpresa =
-    empresa?.nome ||
-    empresa?.nome_empresa ||
-    "nossa empresa";
+    empresa?.nome || empresa?.nome_empresa || "nossa empresa";
 
   const perfil =
-    perfilLead?.perfil_estimado ||
-    analiseMensagem?.perfilHipotese ||
-    "N";
+    perfilLead?.perfil_estimado || analiseMensagem?.perfilHipotese || "N";
 
   const intencao =
-    analiseMensagem?.intencaoDetectada ||
-    "duvida_geral";
+    analiseMensagem?.intencaoDetectada || "duvida_geral";
 
   const etapa =
-    estadoConversa?.etapa_conversa ||
-    "aberta";
+    estadoConversa?.etapa_conversa || "aberta";
 
   const saudacoes = [
     "oi",
@@ -62,12 +56,7 @@ function criarRespostaFallback({
     "e aí"
   ];
 
-  function modularTexto({
-    neutra,
-    direta,
-    acolhedora,
-    calorosa
-  }) {
+  function modularTexto({ neutra, direta, acolhedora, calorosa }) {
     if (perfil === "D" || perfil === "DC" || perfil === "DI") {
       return direta || neutra;
     }
@@ -107,55 +96,74 @@ function criarRespostaFallback({
 
   function respostaEncomenda() {
     return modularTexto({
-      neutra: "Perfeito. Me diga para quantas pessoas é a encomenda ou o que você tem em mente que eu te ajudo.",
-      direta: "Certo. Me diga a quantidade ou para quantas pessoas é a encomenda.",
-      acolhedora: "Perfeito 😊 Me diga para quantas pessoas é a encomenda ou o que você tem em mente que eu te ajudo.",
-      calorosa: "Perfeito! 😊 Me diga para quantas pessoas é a encomenda ou o que você gostaria de pedir."
+      neutra:
+        "Perfeito. Me diga para quantas pessoas é a encomenda ou o que você tem em mente que eu te ajudo.",
+      direta:
+        "Certo. Me diga a quantidade ou para quantas pessoas é a encomenda.",
+      acolhedora:
+        "Perfeito 😊 Me diga para quantas pessoas é a encomenda ou o que você tem em mente que eu te ajudo.",
+      calorosa:
+        "Perfeito! 😊 Me diga para quantas pessoas é a encomenda ou o que você gostaria de pedir."
     });
   }
 
   function respostaPreco() {
     return modularTexto({
       neutra: `Posso te ajudar com os valores aqui na ${nomeEmpresa}. Me diga qual item ou serviço você quer consultar.`,
-      direta: "Me diga qual item ou serviço você quer consultar que eu te passo os valores.",
-      acolhedora: `Claro 😊 Posso te ajudar com os valores. Me diga qual item ou serviço você quer consultar.`,
-      calorosa: `Claro! 😊 Me diga qual item ou serviço você quer consultar que eu te ajudo com os valores.`
+      direta:
+        "Me diga qual item ou serviço você quer consultar que eu te passo os valores.",
+      acolhedora:
+        `Claro 😊 Posso te ajudar com os valores. Me diga qual item ou serviço você quer consultar.`,
+      calorosa:
+        `Claro! 😊 Me diga qual item ou serviço você quer consultar que eu te ajudo com os valores.`
     });
   }
 
   function respostaAgendamento() {
     return modularTexto({
-      neutra: "Posso te ajudar com isso. Me diga qual dia, horário ou serviço você tem em mente.",
+      neutra:
+        "Posso te ajudar com isso. Me diga qual dia, horário ou serviço você tem em mente.",
       direta: "Me diga o dia, horário ou serviço que você quer.",
-      acolhedora: "Claro 😊 Posso te ajudar com isso. Me diga qual dia, horário ou serviço você está buscando.",
-      calorosa: "Claro! 😊 Me diga qual dia, horário ou serviço você tem em mente que eu te ajudo."
+      acolhedora:
+        "Claro 😊 Posso te ajudar com isso. Me diga qual dia, horário ou serviço você está buscando.",
+      calorosa:
+        "Claro! 😊 Me diga qual dia, horário ou serviço você tem em mente que eu te ajudo."
     });
   }
 
   function respostaGeral() {
     if (etapa === "fechamento") {
       return modularTexto({
-        neutra: "Certo. Me diga só o que falta para eu te ajudar a concluir isso da melhor forma.",
+        neutra:
+          "Certo. Me diga só o que falta para eu te ajudar a concluir isso da melhor forma.",
         direta: "Certo. Me diga o que falta para concluir.",
-        acolhedora: "Certo 😊 Me diga só o que falta para eu te ajudar a concluir isso com tranquilidade.",
-        calorosa: "Certo! 😊 Me conta o que falta que eu te ajudo a concluir isso."
+        acolhedora:
+          "Certo 😊 Me diga só o que falta para eu te ajudar a concluir isso com tranquilidade.",
+        calorosa:
+          "Certo! 😊 Me conta o que falta que eu te ajudo a concluir isso."
       });
     }
 
     if (etapa === "interesse" || etapa === "consideracao") {
       return modularTexto({
-        neutra: `Entendi. Posso te ajudar melhor se você me disser exatamente o que procura aqui na ${nomeEmpresa}.`,
+        neutra:
+          `Entendi. Posso te ajudar melhor se você me disser exatamente o que procura aqui na ${nomeEmpresa}.`,
         direta: "Entendi. Me diga exatamente o que você procura.",
-        acolhedora: `Entendi 😊 Me diga exatamente o que você procura aqui na ${nomeEmpresa}, que eu te ajudo da melhor forma.`,
-        calorosa: `Entendi! 😊 Me conta o que você procura aqui na ${nomeEmpresa} que eu te ajudo.`
+        acolhedora:
+          `Entendi 😊 Me diga exatamente o que você procura aqui na ${nomeEmpresa}, que eu te ajudo da melhor forma.`,
+        calorosa:
+          `Entendi! 😊 Me conta o que você procura aqui na ${nomeEmpresa} que eu te ajudo.`
       });
     }
 
     return modularTexto({
-      neutra: `Entendi. Posso te ajudar aqui na ${nomeEmpresa}. Me diga um pouco melhor o que você precisa.`,
+      neutra:
+        `Entendi. Posso te ajudar aqui na ${nomeEmpresa}. Me diga um pouco melhor o que você precisa.`,
       direta: "Entendi. Me diga exatamente o que você precisa.",
-      acolhedora: `Entendi 😊 Me diga um pouco melhor o que você precisa, que eu te ajudo da melhor forma.`,
-      calorosa: `Entendi! 😊 Me conta melhor o que você precisa que eu te ajudo.`
+      acolhedora:
+        `Entendi 😊 Me diga um pouco melhor o que você precisa, que eu te ajudo da melhor forma.`,
+      calorosa:
+        `Entendi! 😊 Me conta melhor o que você precisa que eu te ajudo.`
     });
   }
 
@@ -206,6 +214,34 @@ function criarRespostaFallback({
   }
 
   return respostaGeral();
+}
+
+function extrairTextoGemini(response) {
+  if (!response) return "";
+
+  if (typeof response.text === "string" && response.text.trim()) {
+    return response.text.trim();
+  }
+
+  if (typeof response.text === "function") {
+    const textoFn = response.text();
+    if (typeof textoFn === "string" && textoFn.trim()) {
+      return textoFn.trim();
+    }
+  }
+
+  const parts = response?.candidates?.[0]?.content?.parts || [];
+
+  const textoParts = parts
+    .map((part) => part?.text || "")
+    .join("")
+    .trim();
+
+  if (textoParts) {
+    return textoParts;
+  }
+
+  return "";
 }
 
 async function salvarAnaliseConversa(leadId, analiseMensagem) {
@@ -676,7 +712,7 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    const { data: entradaData, error: entradaError } = await supabase.rpc(
+   const { data: entradaData, error: entradaError } = await supabase.rpc(
       "registrar_entrada_mensagem",
       {
         p_empresa_id: empresa_id,
@@ -710,67 +746,60 @@ app.post("/chat", async (req, res) => {
     let origem_resposta = "gemini";
 
     try {
+      const resultadoIA = await gerarRespostaComGemini(
+        contexto,
+        mensagem,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      );
 
-  const resultadoIA = await gerarRespostaComGemini(
-    contexto,
-    mensagem,
-    analiseMensagem,
-    perfilLead,
-    estadoConversa
-  );
+      resposta = resultadoIA.resposta;
+    } catch (geminiError) {
+      origem_resposta = "fallback";
 
-  resposta = resultadoIA.resposta;
+      resposta = criarRespostaFallback({
+        mensagem,
+        empresa: contexto?.empresa || {},
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      });
 
-} catch (geminiError) {
+      console.error("Erro Gemini /chat:", geminiError);
+    }
 
-  origem_resposta = "fallback";
+    const { error: respostaError } = await supabase.rpc(
+      "registrar_resposta_mac",
+      {
+        p_lead_id: leadId,
+        p_resposta: resposta,
+        p_tipo_mensagem: tipo_mensagem
+      }
+    );
 
-  resposta = criarRespostaFallback({
-    mensagem,
-    empresa: contexto?.empresa || {},
-    analiseMensagem,
-    perfilLead,
-    estadoConversa
-  });
+    if (respostaError) {
+      return res.status(500).json({
+        error: "Erro ao salvar resposta do M.A.C.",
+        details: respostaError.message
+      });
+    }
 
-  console.error("Erro Gemini /chat:", geminiError);
-}
-
-const { error: respostaError } = await supabase.rpc(
-  "registrar_resposta_mac",
-  {
-    p_lead_id: leadId,
-    p_resposta: resposta,
-    p_tipo_mensagem: tipo_mensagem
+    return res.json({
+      ok: true,
+      lead_id: leadId,
+      resposta,
+      origem_resposta,
+      analiseMensagem,
+      perfilLead,
+      estadoConversa
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: "Erro interno no /chat",
+      details: err.message
+    });
   }
-);
-
-if (respostaError) {
-  return res.status(500).json({
-    error: "Erro ao salvar resposta do M.A.C.",
-    details: respostaError.message
-  });
-}
-
-return res.json({
-  ok: true,
-  lead_id: leadId,
-  resposta,
-  origem_resposta,
-  analiseMensagem,
-  perfilLead,
-  estadoConversa
-});
-
-} catch (err) {
-
-  return res.status(500).json({
-    error: "Erro interno no /chat",
-    details: err.message
-  });
-
-}
-
 });
 
 app.listen(PORT, () => {

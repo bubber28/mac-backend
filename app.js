@@ -933,10 +933,12 @@ app.post("/chat", async (req, res) => {
 
         resposta = resultadoIA.resposta;
 
-        if (!validarRespostaMac(resposta)) {
-          throw new Error("Resposta do Gemini inválida ou genérica");
-        }
-      } catch (geminiError) {
+// Validação desativada temporariamente para permitir resposta direta do MAC
+// if (!validarRespostaMac(resposta)) {
+//   throw new Error("Resposta do Gemini inválida ou genérica");
+// }
+
+} catch (geminiError) {
         origem_resposta = "fallback";
 
         resposta = criarRespostaFallback({

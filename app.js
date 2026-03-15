@@ -795,9 +795,9 @@ app.get("/teste", async (req, res) => {
 
         resposta = resultadoIA.resposta;
 
-        if (!validarRespostaMac(resposta)) {
-          throw new Error("Resposta do Gemini inválida ou genérica");
-        }
+       if (!resposta || !resposta.trim()) {
+  throw new Error("Resposta vazia do Gemini");
+}
       } catch (geminiError) {
         origem_resposta = "fallback";
         resposta = criarRespostaFallback({

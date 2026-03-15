@@ -674,9 +674,9 @@ async function gerarRespostaComGemini(
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
-        temperature: 0.7,
+        temperature: 0.6,
         topP: 0.9,
-        maxOutputTokens: 700
+        maxOutputTokens: 1500
       }
     });
 

@@ -796,7 +796,7 @@ app.get("/teste", async (req, res) => {
 
         resposta = resultadoIA.resposta;
 
-        if (!resposta || !resposta.trim()) {
+       if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
           throw new Error("Resposta vazia do Gemini");
         }
       } catch (geminiError) {

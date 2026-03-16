@@ -865,18 +865,46 @@ app.get("/teste", async (req, res) => {
 app.post("/chat", async (req, res) => {
   try {
     const {
-      empresa_id,
-      nome,
-      telefone,
-      canal = "whatsapp",
-      mensagem,
-      tipo_mensagem = "texto"
-    } = req.body;
+  empresa_id,
+  nome,
+  telefone,
+  canal = "whatsapp",
+  mensagem,
+  tipo_mensagem = "texto"
+} = req.body;
 
-    if (!empresa_id || !telefone || !mensagem) {
-      return res.status(400).json({
-        error: "empresa_id, telefone e mensagem são obrigatórios"
-      });
+
+// ===============================
+// VALIDAÇÃO
+// ===============================
+
+if (!empresa_id || !telefone || !mensagem) {
+  return res.status(400).json({
+    error: "empresa_id, telefone e mensagem são obrigatórios"
+  });
+}
+
+
+// ===============================
+// BUSCAR CARDÁPIO DA EMPRESA
+// ===============================
+
+const { data: produtos } = await supabase
+  .from("cardapio_itens")
+  .select("nome, descricao, preco")
+  .eq("empresa_id", empresa_id)
+  .eq("ativo", true);
+
+const listaProdutos =
+  produtos && produtos.length > 0
+    ? produtos.map(p => `${p.nome} - R$${p.preco}`).join("\n")
+    : "Nenhum produto cadastrado";
+
+const contextoCardapio = `
+CARDÁPIO DA EMPRESA
+
+${listaProdutos}
+`;
     }
 
     const { data: entradaData, error: entradaError } = await supabase.rpc(
@@ -907,21 +935,24 @@ app.post("/chat", async (req, res) => {
     await atualizarEstadoConversaLead(leadId, analiseMensagem);
 
     const perfilLead = await buscarPerfilLead(leadId);
-    const estadoConversa = await buscarEstadoConversaLead(leadId);
+   const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
+const faq = contexto?.faq || contexto?.faq_empresa || [];
 
-    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
-    const faq = contexto?.faq || contexto?.faq_empresa || [];
-    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
+// ===============================
+// ADICIONAR CARDÁPIO AO CONTEXTO
+// ===============================
 
-    let resposta = "";
-    let origem_resposta = "gemini";
+if (produtos && produtos.length > 0) {
+  const produtosComoServicos = produtos.map((p) => ({
+    nome_servico: p.nome,
+    preco: p.preco,
+    descricao: p.descricao || ""
+  }));
 
-    if (servicoDetectado && analiseMensagem.intencaoDetectada === "orcamento") {
-      const preco = formatarPreco(servicoDetectado.preco);
-      const descricao = (servicoDetectado.descricao || "").trim();
+  servicos.push(...produtosComoServicos);
+}
 
-      resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""} Se quiser, posso te explicar como funciona ou verificar horários disponíveis.`;
-      origem_resposta = "banco";
+const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
     }
 
     if (

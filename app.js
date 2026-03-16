@@ -79,8 +79,9 @@ function validarRespostaMac(texto = "") {
     "Me diga qual item ou serviço você quer consultar que eu te passo os valores."
   ];
 
-  if (respostasGenericasRuins.includes(resposta)) {
-    return false;
+  if (respostasGenericasRuins.some(r => resposta.includes(r))) {
+  return false;
+}
   }
 
   const finaisValidos = [".", "!", "?", ".”", "!”", "?”"];

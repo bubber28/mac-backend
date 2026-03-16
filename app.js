@@ -82,7 +82,7 @@ function validarRespostaMac(texto = "") {
   if (respostasGenericasRuins.some(r => resposta.includes(r))) {
   return false;
 }
-  }
+
 
   const finaisValidos = [".", "!", "?", ".”", "!”", "?”"];
   const terminouBem = finaisValidos.some((final) => resposta.endsWith(final));
@@ -111,7 +111,7 @@ function extrairTextoGemini(response) {
       if (typeof textoFn === "string" && textoFn.trim()) {
         return textoFn.trim();
       }
-    }
+    
 
     const candidates = response.candidates;
 
@@ -130,9 +130,6 @@ function extrairTextoGemini(response) {
           return texto;
         }
 
-      }
-
-    }
 
     return "";
 
@@ -142,7 +139,7 @@ function extrairTextoGemini(response) {
     return "";
 
   }
-}
+
 
 function criarRespostaFallback({
   mensagem,
@@ -263,7 +260,7 @@ function criarRespostaFallback({
         calorosa: `${nomeServico} está disponível por aqui na ${nomeEmpresa}. ${descricao}`
       });
     }
-  }
+
 
   const faqEncontrada = Array.isArray(faq)
     ? faq.find((item) => {
@@ -539,8 +536,6 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
     if (insertError) {
       throw new Error(`Erro ao criar perfil do lead: ${insertError.message}`);
     }
-  }
-}
 
 function mapearEstadoConversa(analiseMensagem) {
   const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
@@ -704,7 +699,7 @@ async function gerarRespostaComGemini(
     console.error("Erro Gemini:", error);
     throw error;
   }
-}
+
 
 app.get("/", (req, res) => {
   res.send("M.A.C. backend online");
@@ -826,7 +821,7 @@ app.get("/teste", async (req, res) => {
         });
         console.error("Erro Gemini /teste:", geminiError);
       }
-    }
+    
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",

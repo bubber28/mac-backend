@@ -99,34 +99,48 @@ function validarRespostaMac(texto = "") {
 function extrairTextoGemini(response) {
   if (!response) return "";
 
-  if (typeof response.text === "string" && response.text.trim()) {
-    return response.text.trim();
-  }
+  try {
 
-  if (typeof response.text === "function") {
-    try {
+    if (typeof response.text === "string" && response.text.trim()) {
+      return response.text.trim();
+    }
+
+    if (typeof response.text === "function") {
       const textoFn = response.text();
       if (typeof textoFn === "string" && textoFn.trim()) {
         return textoFn.trim();
       }
-    } catch (error) {
-      // segue para fallback de extração
     }
+
+    const candidates = response.candidates;
+
+    if (Array.isArray(candidates) && candidates.length > 0) {
+
+      const parts = candidates[0]?.content?.parts;
+
+      if (Array.isArray(parts) && parts.length > 0) {
+
+        const texto = parts
+          .map(p => p?.text || "")
+          .join("")
+          .trim();
+
+        if (texto) {
+          return texto;
+        }
+
+      }
+
+    }
+
+    return "";
+
+  } catch (erro) {
+
+    console.error("Erro extraindo resposta Gemini:", erro);
+    return "";
+
   }
-
-  const parts = response?.candidates?.[0]?.content?.parts || [];
-
-  const textoParts = parts
-    .map((part) => part?.text || "")
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (textoParts) {
-    return textoParts;
-  }
-
-  return "";
 }
 
 function criarRespostaFallback({

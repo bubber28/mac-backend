@@ -858,7 +858,17 @@ app.post("/chat", async (req, res) => {
       mensagem,
       tipo_mensagem = "texto"
     } = req.body;
+const { data: configEmpresa, error: erroConfig } = await supabase
+  .from("empresa_config")
+  .select("*")
+  .eq("empresa_id", empresa_id)
+  .maybeSingle();
 
+if (erroConfig) {
+  console.log("ERRO AO BUSCAR CONFIG:", erroConfig);
+}
+
+console.log("CONFIG EMPRESA:", configEmpresa);
     if (!empresa_id || !telefone || !mensagem) {
       return res.status(400).json({
         error: "empresa_id, telefone e mensagem são obrigatórios"
@@ -866,10 +876,10 @@ app.post("/chat", async (req, res) => {
     }
 
     const { data: produtos, error: produtosError } = await supabase
-      .from("cardapio_itens")
-      .select("nome, descricao, preco")
-      .eq("empresa_id", empresa_id)
-      .eq("ativo", true);
+  .from("cardapio_itens")
+  .select("nome, descricao, preco, tipo_item")
+  .eq("empresa_id", empresa_id)
+  .eq("ativo", true);
 
     if (produtosError) {
       console.error("Erro ao buscar cardápio:", produtosError.message);
@@ -908,15 +918,42 @@ app.post("/chat", async (req, res) => {
     const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
 
-    if (produtos && produtos.length > 0) {
-      const produtosComoServicos = produtos.map((p) => ({
-        nome_servico: p.nome,
-        preco: p.preco,
-        descricao: p.descricao || ""
-      }));
+   
 
-      servicos.push(...produtosComoServicos);
-    }
+let focoCombo = false;
+
+if (
+  configEmpresa?.modelo_venda === "combo" ||
+  configEmpresa?.foco_principal === "festas"
+) {
+  focoCombo = true;
+}
+
+// ===============================
+// ADICIONAR CARDÁPIO AO CONTEXTO
+// ===============================
+
+let produtosFiltrados = produtos || [];
+
+if (focoCombo) {
+  const combos = produtosFiltrados.filter((p) => p.tipo_item === "combo");
+
+  if (combos.length > 0) {
+    produtosFiltrados = combos;
+  }
+}
+
+if (produtosFiltrados.length > 0) {
+  const produtosComoServicos = produtosFiltrados.map((p) => ({
+    nome_servico: p.nome,
+    preco: p.preco,
+    descricao: p.descricao || ""
+  }));
+
+  servicos.push(...produtosComoServicos);
+}
+
+const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
 
     const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
 

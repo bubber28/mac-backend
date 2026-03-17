@@ -786,7 +786,25 @@ app.get("/teste", async (req, res) => {
       resposta = `Sim, realizamos ${servicoDetectado.nome_servico}.${descricao ? ` ${descricao}` : ""}${preco ? ` Se quiser, também posso te passar o valor: ${preco}.` : ""}`;
       origem_resposta = "banco";
     }
+// ===============================
+// CONTROLE DE ESTRATÉGIA DE RESPOSTA
+// ===============================
 
+let respostaEstrategica = null;
+
+if (!servicoDetectado) {
+  if (
+    analiseMensagem.intencaoDetectada === "descoberta" ||
+    analiseMensagem.intencaoDetectada === "duvida_geral"
+  ) {
+    respostaEstrategica =
+     "Temos várias opções 😊 você quer algo pra consumo rápido ou para alguma ocasião especial?";
+  }
+}
+    if (!resposta && respostaEstrategica) {
+  resposta = respostaEstrategica;
+  origem_resposta = "estrategia";
+}
     if (!resposta) {
       try {
         const resultadoIA = await gerarRespostaComGemini(

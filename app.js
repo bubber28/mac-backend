@@ -85,7 +85,7 @@ function encontrarServicoPorMensagem(
         }) || null
       );
     }
-  }
+  
 
   return (
     servicosOrdenados.find((servico) => {
@@ -162,7 +162,7 @@ function extrairTextoGemini(response) {
       if (typeof textoFn === "string" && textoFn.trim()) {
         return textoFn.trim();
       }
-    }
+    
 
     const candidates = response.candidates;
 
@@ -178,15 +178,14 @@ function extrairTextoGemini(response) {
         if (texto) {
           return texto;
         }
-      }
-    }
+    
 
     return "";
   } catch (erro) {
     console.error("Erro extraindo resposta Gemini:", erro);
     return "";
   }
-}
+
 
 function criarRespostaFallback({
   mensagem,
@@ -304,7 +303,7 @@ function criarRespostaFallback({
         calorosa: `${nomeServico} está disponível por aqui na ${nomeEmpresa}. ${descricao}`
       });
     }
-  }
+  
 
   const faqEncontrada = Array.isArray(faq)
     ? faq.find((item) => {
@@ -446,7 +445,7 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
   if (error) {
     throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
   }
-}
+
 
 function calcularPerfilPorScores(scoreD, scoreI, scoreS, scoreC) {
   const scores = [
@@ -576,8 +575,7 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
     if (insertError) {
       throw new Error(`Erro ao criar perfil do lead: ${insertError.message}`);
     }
-  }
-}
+
 
 function mapearEstadoConversa(analiseMensagem) {
   const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
@@ -673,8 +671,7 @@ async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
     if (insertError) {
       throw new Error(`Erro ao criar estado da conversa: ${insertError.message}`);
     }
-  }
-}
+ 
 
 async function buscarEstadoConversaLead(leadId) {
   if (!leadId) return null;
@@ -743,7 +740,7 @@ async function gerarRespostaComGemini(
     console.error("Erro Gemini:", error);
     throw error;
   }
-}
+
 
 app.get("/", (req, res) => {
   res.send("M.A.C. backend online");
@@ -876,7 +873,7 @@ const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem, context
         });
         console.error("Erro Gemini /teste:", geminiError);
       }
-    }
+    
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",
@@ -1005,7 +1002,7 @@ if (focoCombo) {
   if (combos.length > 0) {
     produtosFiltrados = combos;
   }
-}
+
 
 if (produtosFiltrados.length > 0) {
   const produtosComoServicos = produtosFiltrados.map((p) => ({
@@ -1075,7 +1072,7 @@ const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
 
         console.error("Erro Gemini /chat:", geminiError);
       }
-    }
+    
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",

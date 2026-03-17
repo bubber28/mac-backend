@@ -85,7 +85,7 @@ function encontrarServicoPorMensagem(
         }) || null
       );
     }
-  
+  }
 
   return (
     servicosOrdenados.find((servico) => {
@@ -94,9 +94,6 @@ function encontrarServicoPorMensagem(
       return msg.includes(nome);
     }) || null
   );
-
-
- 
 }
 
 function validarRespostaMac(texto = "") {
@@ -146,7 +143,7 @@ function extrairTextoGemini(response) {
       if (typeof textoFn === "string" && textoFn.trim()) {
         return textoFn.trim();
       }
-    
+    }
 
     const candidates = response.candidates;
 
@@ -162,14 +159,15 @@ function extrairTextoGemini(response) {
         if (texto) {
           return texto;
         }
-    
+      }
+    }
 
     return "";
   } catch (erro) {
     console.error("Erro extraindo resposta Gemini:", erro);
     return "";
   }
-
+}
 
 function criarRespostaFallback({
   mensagem,
@@ -188,7 +186,6 @@ function criarRespostaFallback({
     perfilLead?.perfil_estimado || analiseMensagem?.perfilHipotese || "N";
 
   const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
-
   const etapa = estadoConversa?.etapa_conversa || "aberta";
 
   const saudacoes = [
@@ -236,7 +233,11 @@ function criarRespostaFallback({
     });
   }
 
-  const servicoEncontrado = encontrarServicoPorMensagem(servicos, mensagem);
+  const servicoEncontrado = encontrarServicoPorMensagem(
+    servicos,
+    mensagem,
+    "padrao"
+  );
 
   if (servicoEncontrado) {
     const nomeServico = servicoEncontrado.nome_servico || "esse serviço";
@@ -287,7 +288,7 @@ function criarRespostaFallback({
         calorosa: `${nomeServico} está disponível por aqui na ${nomeEmpresa}. ${descricao}`
       });
     }
-  
+  }
 
   const faqEncontrada = Array.isArray(faq)
     ? faq.find((item) => {
@@ -301,7 +302,11 @@ function criarRespostaFallback({
     return faqEncontrada.resposta;
   }
 
-  if (msg.includes("cardápio") || msg.includes("cardapio") || msg.includes("menu")) {
+  if (
+    msg.includes("cardápio") ||
+    msg.includes("cardapio") ||
+    msg.includes("menu")
+  ) {
     return modularTexto({
       neutra: `Claro! Posso te mostrar o que temos disponível na ${nomeEmpresa}. Você quer algo para agora ou está buscando alguma opção específica?`,
       direta: `Temos opções disponíveis na ${nomeEmpresa}. Você quer algo para agora ou alguma opção específica?`,
@@ -379,24 +384,18 @@ function criarRespostaFallback({
 
   if (etapa === "interesse" || etapa === "consideracao") {
     return modularTexto({
-      neutra:
-        `Entendi. Me fala qual serviço, produto ou informação você quer saber na ${nomeEmpresa} que eu te respondo de forma mais direta.`,
+      neutra: `Entendi. Me fala qual serviço, produto ou informação você quer saber na ${nomeEmpresa} que eu te respondo de forma mais direta.`,
       direta: "Entendi. Me diga qual serviço ou informação você quer saber.",
-      acolhedora:
-        `Entendi 😊 Me fala qual serviço, produto ou informação você quer saber na ${nomeEmpresa} que eu te respondo direitinho.`,
-      calorosa:
-        `Entendi! 😊 Me conta o que você quer saber na ${nomeEmpresa} que eu te ajudo por aqui.`
+      acolhedora: `Entendi 😊 Me fala qual serviço, produto ou informação você quer saber na ${nomeEmpresa} que eu te respondo direitinho.`,
+      calorosa: `Entendi! 😊 Me conta o que você quer saber na ${nomeEmpresa} que eu te ajudo por aqui.`
     });
   }
 
   return modularTexto({
-    neutra:
-      `Entendi. Posso te ajudar aqui na ${nomeEmpresa}. Me diga um pouco melhor o que você precisa.`,
+    neutra: `Entendi. Posso te ajudar aqui na ${nomeEmpresa}. Me diga um pouco melhor o que você precisa.`,
     direta: "Entendi. Me diga exatamente o que você precisa.",
-    acolhedora:
-      `Entendi 😊 Me diga um pouco melhor o que você precisa, que eu te ajudo da melhor forma.`,
-    calorosa:
-      `Entendi! 😊 Me conta melhor o que você precisa que eu te ajudo.`
+    acolhedora: `Entendi 😊 Me diga um pouco melhor o que você precisa, que eu te ajudo da melhor forma.`,
+    calorosa: `Entendi! 😊 Me conta melhor o que você precisa que eu te ajudo.`
   });
 }
 
@@ -429,7 +428,7 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
   if (error) {
     throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
   }
-
+}
 
 function calcularPerfilPorScores(scoreD, scoreI, scoreS, scoreC) {
   const scores = [
@@ -477,91 +476,7 @@ function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
   const maior = Math.max(scoreD || 0, scoreI || 0, scoreS || 0, scoreC || 0);
   return Number((maior / total).toFixed(2));
 }
-
-async function atualizarPerfilLead(leadId, analiseMensagem) {
-  if (!leadId || !analiseMensagem) return;
-
-  const deltaD = analiseMensagem.scoreD || 0;
-  const deltaI = analiseMensagem.scoreI || 0;
-  const deltaS = analiseMensagem.scoreS || 0;
-  const deltaC = analiseMensagem.scoreC || 0;
-
-  const { count, error: countError } = await supabase
-    .from("analise_conversa_mac")
-    .select("*", { count: "exact", head: true })
-    .eq("lead_id", leadId);
-
-  if (countError) {
-    throw new Error(`Erro ao contar análises do lead: ${countError.message}`);
-  }
-
-  const mensagensAnalisadas = count || 0;
-
-  const { data: perfilExistente, error: perfilError } = await supabase
-    .from("perfil_lead_mac")
-    .select("*")
-    .eq("lead_id", leadId)
-    .maybeSingle();
-
-  if (perfilError) {
-    throw new Error(`Erro ao buscar perfil do lead: ${perfilError.message}`);
-  }
-
-  const novoScoreD = (perfilExistente?.score_d || 0) + deltaD;
-  const novoScoreI = (perfilExistente?.score_i || 0) + deltaI;
-  const novoScoreS = (perfilExistente?.score_s || 0) + deltaS;
-  const novoScoreC = (perfilExistente?.score_c || 0) + deltaC;
-
-  const perfilEstimado = calcularPerfilPorScores(
-    novoScoreD,
-    novoScoreI,
-    novoScoreS,
-    novoScoreC
-  );
-
-  const confianca = calcularConfiancaPorScores(
-    novoScoreD,
-    novoScoreI,
-    novoScoreS,
-    novoScoreC
-  );
-
-  const estrategiaDominante = calcularEstrategiaPorPerfil(perfilEstimado);
-
-  const payload = {
-    lead_id: leadId,
-    perfil_estimado: perfilEstimado,
-    confianca,
-    mensagens_analisadas: mensagensAnalisadas,
-    estrategia_dominante: estrategiaDominante,
-    ultimo_perfil_detectado: analiseMensagem.perfilHipotese || "N",
-    updated_at: new Date().toISOString(),
-    score_d: novoScoreD,
-    score_i: novoScoreI,
-    score_s: novoScoreS,
-    score_c: novoScoreC
-  };
-
-  if (perfilExistente?.id) {
-    const { error: updateError } = await supabase
-      .from("perfil_lead_mac")
-      .update(payload)
-      .eq("id", perfilExistente.id);
-
-    if (updateError) {
-      throw new Error(`Erro ao atualizar perfil do lead: ${updateError.message}`);
-    }
-  } else {
-    const { error: insertError } = await supabase
-      .from("perfil_lead_mac")
-      .insert(payload);
-
-    if (insertError) {
-      throw new Error(`Erro ao criar perfil do lead: ${insertError.message}`);
-    }
-
-
-function mapearEstadoConversa(analiseMensagem) {
+  function mapearEstadoConversa(analiseMensagem) {
   const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
 
   if (intencao === "orcamento") {
@@ -655,7 +570,8 @@ async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
     if (insertError) {
       throw new Error(`Erro ao criar estado da conversa: ${insertError.message}`);
     }
- 
+  }
+}
 
 async function buscarEstadoConversaLead(leadId) {
   if (!leadId) return null;
@@ -724,7 +640,7 @@ async function gerarRespostaComGemini(
     console.error("Erro Gemini:", error);
     throw error;
   }
-
+}
 
 app.get("/", (req, res) => {
   res.send("M.A.C. backend online");
@@ -792,19 +708,8 @@ app.get("/teste", async (req, res) => {
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
     const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
-const faq = contexto?.faq || contexto?.faq_empresa || [];
-
-let contextoVenda = "padrao";
-
-if (configEmpresa?.modelo_venda === "combo") {
-  contextoVenda = "combo";
-}
-
-if (configEmpresa?.modelo_venda === "servico") {
-  contextoVenda = "servico";
-}
-
-const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem, contextoVenda);
+    const faq = contexto?.faq || contexto?.faq_empresa || [];
+    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
 
     let resposta = "";
     let origem_resposta = "gemini";
@@ -841,7 +746,7 @@ const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem, context
 
         resposta = resultadoIA.resposta;
 
-       if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
+        if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
           throw new Error("Resposta vazia do Gemini");
         }
       } catch (geminiError) {
@@ -857,7 +762,7 @@ const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem, context
         });
         console.error("Erro Gemini /teste:", geminiError);
       }
-    
+    }
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",
@@ -903,17 +808,19 @@ app.post("/chat", async (req, res) => {
       mensagem,
       tipo_mensagem = "texto"
     } = req.body;
-const { data: configEmpresa, error: erroConfig } = await supabase
-  .from("empresa_config")
-  .select("*")
-  .eq("empresa_id", empresa_id)
-  .maybeSingle();
 
-if (erroConfig) {
-  console.log("ERRO AO BUSCAR CONFIG:", erroConfig);
-}
+    const { data: configEmpresa, error: erroConfig } = await supabase
+      .from("empresa_config")
+      .select("*")
+      .eq("empresa_id", empresa_id)
+      .maybeSingle();
 
-console.log("CONFIG EMPRESA:", configEmpresa);
+    if (erroConfig) {
+      console.log("ERRO AO BUSCAR CONFIG:", erroConfig);
+    }
+
+    console.log("CONFIG EMPRESA:", configEmpresa);
+
     if (!empresa_id || !telefone || !mensagem) {
       return res.status(400).json({
         error: "empresa_id, telefone e mensagem são obrigatórios"
@@ -921,10 +828,10 @@ console.log("CONFIG EMPRESA:", configEmpresa);
     }
 
     const { data: produtos, error: produtosError } = await supabase
-  .from("cardapio_itens")
-  .select("nome, descricao, preco, tipo_item")
-  .eq("empresa_id", empresa_id)
-  .eq("ativo", true);
+      .from("cardapio_itens")
+      .select("nome, descricao, preco, tipo_item")
+      .eq("empresa_id", empresa_id)
+      .eq("ativo", true);
 
     if (produtosError) {
       console.error("Erro ao buscar cardápio:", produtosError.message);
@@ -963,44 +870,50 @@ console.log("CONFIG EMPRESA:", configEmpresa);
     const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
 
-   
+    let focoCombo = false;
 
-let focoCombo = false;
+    if (
+      configEmpresa?.modelo_venda === "combo" ||
+      configEmpresa?.foco_principal === "festas"
+    ) {
+      focoCombo = true;
+    }
 
-if (
-  configEmpresa?.modelo_venda === "combo" ||
-  configEmpresa?.foco_principal === "festas"
-) {
-  focoCombo = true;
-}
+    let produtosFiltrados = produtos || [];
 
-// ===============================
-// ADICIONAR CARDÁPIO AO CONTEXTO
-// ===============================
+    if (focoCombo) {
+      const combos = produtosFiltrados.filter((p) => p.tipo_item === "combo");
 
-let produtosFiltrados = produtos || [];
+      if (combos.length > 0) {
+        produtosFiltrados = combos;
+      }
+    }
 
-if (focoCombo) {
-  const combos = produtosFiltrados.filter((p) => p.tipo_item === "combo");
+    if (produtosFiltrados.length > 0) {
+      const produtosComoServicos = produtosFiltrados.map((p) => ({
+        nome_servico: p.nome,
+        preco: p.preco,
+        descricao: p.descricao || ""
+      }));
 
-  if (combos.length > 0) {
-    produtosFiltrados = combos;
-  }
+      servicos.push(...produtosComoServicos);
+    }
 
+    let contextoVenda = "padrao";
 
-if (produtosFiltrados.length > 0) {
-  const produtosComoServicos = produtosFiltrados.map((p) => ({
-    nome_servico: p.nome,
-    preco: p.preco,
-    descricao: p.descricao || ""
-  }));
+    if (configEmpresa?.modelo_venda === "combo") {
+      contextoVenda = "combo";
+    }
 
-  servicos.push(...produtosComoServicos);
-}
+    if (configEmpresa?.modelo_venda === "servico") {
+      contextoVenda = "servico";
+    }
 
-const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
-
-    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
+    const servicoDetectado = encontrarServicoPorMensagem(
+      servicos,
+      mensagem,
+      contextoVenda
+    );
 
     let resposta = "";
     let origem_resposta = "gemini";
@@ -1037,7 +950,7 @@ const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
 
         resposta = resultadoIA.resposta;
 
-        // Validação desativada temporariamente para permitir resposta direta do MAC
+        // Validação desativada temporariamente
         // if (!validarRespostaMac(resposta)) {
         //   throw new Error("Resposta do Gemini inválida ou genérica");
         // }
@@ -1056,7 +969,7 @@ const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
 
         console.error("Erro Gemini /chat:", geminiError);
       }
-    
+    }
 
     const { error: respostaError } = await supabase.rpc(
       "registrar_resposta_mac",

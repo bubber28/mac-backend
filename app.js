@@ -767,7 +767,11 @@ app.get("/teste", async (req, res) => {
     let resposta = "";
     let origem_resposta = "gemini";
 
-    if (servicoDetectado && analiseMensagem.intencaoDetectada === "orcamento") {
+    if (
+  servicoDetectado &&
+  analiseMensagem.intencaoDetectada === "orcamento" &&
+  !mensagem.toLowerCase().includes("tem ")
+) {
       const preco = formatarPreco(servicoDetectado.preco);
       const descricao = (servicoDetectado.descricao || "").trim();
 

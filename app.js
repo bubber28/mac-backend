@@ -94,25 +94,9 @@ function encontrarServicoPorMensagem(
       return msg.includes(nome);
     }) || null
   );
-}  const msg = (mensagem || "").toLowerCase().trim();
 
-  if (!msg || !Array.isArray(servicos) || servicos.length === 0) {
-    return null;
-  }
 
-  const servicosOrdenados = [...servicos].sort((a, b) => {
-    const nomeA = (a?.nome_servico || "").length;
-    const nomeB = (b?.nome_servico || "").length;
-    return nomeB - nomeA;
-  });
-
-  return (
-    servicosOrdenados.find((servico) => {
-      const nome = (servico?.nome_servico || "").toLowerCase().trim();
-      if (!nome) return false;
-      return msg.includes(nome);
-    }) || null
-  );
+ 
 }
 
 function validarRespostaMac(texto = "") {

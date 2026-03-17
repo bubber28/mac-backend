@@ -40,8 +40,61 @@ function formatarPreco(valor) {
   });
 }
 
-function encontrarServicoPorMensagem(servicos = [], mensagem = "") {
+function encontrarServicoPorMensagem(
+  servicos = [],
+  mensagem = "",
+  contextoVenda = "padrao"
+) {
   const msg = (mensagem || "").toLowerCase().trim();
+
+  if (!msg || !Array.isArray(servicos) || servicos.length === 0) {
+    return null;
+  }
+
+  const servicosOrdenados = [...servicos].sort((a, b) => {
+    const nomeA = (a?.nome_servico || "").length;
+    const nomeB = (b?.nome_servico || "").length;
+    return nomeB - nomeA;
+  });
+
+  if (contextoVenda === "combo") {
+    const encontrouPorIntencaoCombo =
+      msg.includes("combo") ||
+      msg.includes("kit") ||
+      msg.includes("festa") ||
+      msg.includes("evento") ||
+      msg.includes("anivers") ||
+      msg.includes("encomenda") ||
+      msg.includes("cento");
+
+    if (encontrouPorIntencaoCombo) {
+      return (
+        servicosOrdenados.find((servico) => {
+          const nome = (servico?.nome_servico || "").toLowerCase().trim();
+          const descricao = (servico?.descricao || "").toLowerCase().trim();
+
+          return (
+            nome.includes("combo") ||
+            descricao.includes("combo") ||
+            descricao.includes("festa") ||
+            descricao.includes("evento") ||
+            descricao.includes("anivers") ||
+            descricao.includes("encomenda") ||
+            descricao.includes("cento")
+          );
+        }) || null
+      );
+    }
+  }
+
+  return (
+    servicosOrdenados.find((servico) => {
+      const nome = (servico?.nome_servico || "").toLowerCase().trim();
+      if (!nome) return false;
+      return msg.includes(nome);
+    }) || null
+  );
+}  const msg = (mensagem || "").toLowerCase().trim();
 
   if (!msg || !Array.isArray(servicos) || servicos.length === 0) {
     return null;
@@ -758,8 +811,19 @@ app.get("/teste", async (req, res) => {
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
     const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
-    const faq = contexto?.faq || contexto?.faq_empresa || [];
-    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
+const faq = contexto?.faq || contexto?.faq_empresa || [];
+
+let contextoVenda = "padrao";
+
+if (configEmpresa?.modelo_venda === "combo") {
+  contextoVenda = "combo";
+}
+
+if (configEmpresa?.modelo_venda === "servico") {
+  contextoVenda = "servico";
+}
+
+const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem, contextoVenda);
 
     let resposta = "";
     let origem_resposta = "gemini";

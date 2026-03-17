@@ -475,6 +475,59 @@ function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
 
   const maior = Math.max(scoreD || 0, scoreI || 0, scoreS || 0, scoreC || 0);
   return Number((maior / total).toFixed(2));
+} 
+async function atualizarPerfilLead(leadId, analiseMensagem) {
+  if (!leadId || !analiseMensagem) return;
+
+  const deltaD = analiseMensagem.scoreD || 0;
+  const deltaI = analiseMensagem.scoreI || 0;
+  const deltaS = analiseMensagem.scoreS || 0;
+  const deltaC = analiseMensagem.scoreC || 0;
+
+  const { data: perfilExistente } = await supabase
+    .from("perfil_lead_mac")
+    .select("*")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  const novoScoreD = (perfilExistente?.score_d || 0) + deltaD;
+  const novoScoreI = (perfilExistente?.score_i || 0) + deltaI;
+  const novoScoreS = (perfilExistente?.score_s || 0) + deltaS;
+  const novoScoreC = (perfilExistente?.score_c || 0) + deltaC;
+
+  const perfilEstimado = calcularPerfilPorScores(
+    novoScoreD,
+    novoScoreI,
+    novoScoreS,
+    novoScoreC
+  );
+
+  const confianca = calcularConfiancaPorScores(
+    novoScoreD,
+    novoScoreI,
+    novoScoreS,
+    novoScoreC
+  );
+
+  const payload = {
+    lead_id: leadId,
+    perfil_estimado: perfilEstimado,
+    confianca,
+    score_d: novoScoreD,
+    score_i: novoScoreI,
+    score_s: novoScoreS,
+    score_c: novoScoreC,
+    updated_at: new Date().toISOString()
+  };
+
+  if (perfilExistente?.id) {
+    await supabase
+      .from("perfil_lead_mac")
+      .update(payload)
+      .eq("id", perfilExistente.id);
+  } else {
+    await supabase.from("perfil_lead_mac").insert(payload);
+  }
 }
   function mapearEstadoConversa(analiseMensagem) {
   const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";

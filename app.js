@@ -797,12 +797,38 @@ app.get("/teste", async (req, res) => {
 let respostaEstrategica = null;
 
 if (!servicoDetectado) {
-  if (
+  const msgLower = (mensagem || "").toLowerCase();
+
+  const pediuCardapio =
+    msgLower.includes("cardápio") ||
+    msgLower.includes("cardapio") ||
+    msgLower.includes("menu") ||
+    msgLower.includes("mostra o que") ||
+    msgLower.includes("me mostra o que") ||
+    msgLower.includes("quais opções") ||
+    msgLower.includes("quais opcoes") ||
+    msgLower.includes("o que vocês têm") ||
+    msgLower.includes("o que voces tem") ||
+    msgLower.includes("o que tem") ||
+    msgLower.includes("quero ver");
+
+  if (pediuCardapio && Array.isArray(servicos) && servicos.length > 0) {
+    const itens = servicos
+      .slice(0, 8)
+      .map((s) => {
+        const preco = formatarPreco(s.preco);
+        return `• ${s.nome_servico}${preco ? ` — ${preco}` : ""}`;
+      })
+      .join("\n");
+
+    resposta = `Claro! Aqui estão algumas opções do nosso cardápio:\n\n${itens}\n\nSe quiser, eu também posso te mostrar só os combos ou só os salgados.`;
+    origem_resposta = "banco";
+  } else if (
     analiseMensagem.intencaoDetectada === "descoberta" ||
     analiseMensagem.intencaoDetectada === "duvida_geral"
   ) {
     respostaEstrategica =
-     "Temos várias opções 😊 você quer algo pra consumo rápido ou para alguma ocasião especial?";
+      "Temos várias opções 😊 você quer algo pra consumo rápido ou para alguma ocasião especial?";
   }
 }
     if (resposta && respostaEstrategica) {

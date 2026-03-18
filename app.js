@@ -767,7 +767,7 @@ app.get("/teste", async (req, res) => {
     let resposta = "";
     let origem_resposta = "gemini";
 
-  if (
+ if (
   servicoDetectado &&
   analiseMensagem.intencaoDetectada === "orcamento" &&
   !mensagem.toLowerCase().includes("tem ")
@@ -775,7 +775,7 @@ app.get("/teste", async (req, res) => {
   const preco = formatarPreco(servicoDetectado.preco);
   const descricao = (servicoDetectado.descricao || "").trim();
 
- resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` :
+  resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""}`;
   origem_resposta = "banco";
 }
 

@@ -543,6 +543,108 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
     throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
   }
 }
+function calcularPerfilPorScores(scoreD, scoreI, scoreS, scoreC) {
+  const scores = [
+    { perfil: "D", valor: scoreD || 0 },
+    { perfil: "I", valor: scoreI || 0 },
+    { perfil: "S", valor: scoreS || 0 },
+    { perfil: "C", valor: scoreC || 0 }
+  ].sort((a, b) => b.valor - a.valor);
+
+  const maior = scores[0];
+  const segundo = scores[1];
+
+  if (maior.valor === 0) return "N";
+
+  if (segundo.valor > 0 && maior.valor - segundo.valor <= 1) {
+    const combinacao = `${maior.perfil}${segundo.perfil}`;
+
+    if (combinacao === "ID") return "DI";
+    if (combinacao === "CD") return "DC";
+    if (combinacao === "SI") return "IS";
+    if (combinacao === "CS") return "SC";
+    if (["DI", "DC", "IS", "SC"].includes(combinacao)) return combinacao;
+  }
+
+  return maior.perfil;
+}
+
+function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
+  const total = (scoreD || 0) + (scoreI || 0) + (scoreS || 0) + (scoreC || 0);
+
+  if (total === 0) return 0.5;
+
+  const maior = Math.max(scoreD || 0, scoreI || 0, scoreS || 0, scoreC || 0);
+  return Number((maior / total).toFixed(2));
+}
+
+async function atualizarPerfilLead(leadId, analiseMensagem) {
+  if (!leadId || !analiseMensagem) return;
+
+  const deltaD = analiseMensagem.scoreD || 0;
+  const deltaI = analiseMensagem.scoreI || 0;
+  const deltaS = analiseMensagem.scoreS || 0;
+  const deltaC = analiseMensagem.scoreC || 0;
+
+  const { data: perfilExistente, error: perfilError } = await supabase
+    .from("perfil_lead_mac")
+    .select("*")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (perfilError) {
+    throw new Error(`Erro ao buscar perfil do lead: ${perfilError.message}`);
+  }
+
+  const novoScoreD = (perfilExistente?.score_d || 0) + deltaD;
+  const novoScoreI = (perfilExistente?.score_i || 0) + deltaI;
+  const novoScoreS = (perfilExistente?.score_s || 0) + deltaS;
+  const novoScoreC = (perfilExistente?.score_c || 0) + deltaC;
+
+  const perfilEstimado = calcularPerfilPorScores(
+    novoScoreD,
+    novoScoreI,
+    novoScoreS,
+    novoScoreC
+  );
+
+  const confianca = calcularConfiancaPorScores(
+    novoScoreD,
+    novoScoreI,
+    novoScoreS,
+    novoScoreC
+  );
+
+  const payload = {
+    lead_id: leadId,
+    perfil_estimado: perfilEstimado,
+    confianca,
+    score_d: novoScoreD,
+    score_i: novoScoreI,
+    score_s: novoScoreS,
+    score_c: novoScoreC,
+    updated_at: new Date().toISOString()
+  };
+
+  if (perfilExistente?.id) {
+    const { error: updateError } = await supabase
+      .from("perfil_lead_mac")
+      .update(payload)
+      .eq("id", perfilExistente.id);
+
+    if (updateError) {
+      throw new Error(`Erro ao atualizar perfil do lead: ${updateError.message}`);
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from("perfil_lead_mac")
+      .insert(payload);
+
+    if (insertError) {
+      throw new Error(`Erro ao criar perfil do lead: ${insertError.message}`);
+    }
+  }
+}
 async function atualizarPerfilLead(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem) return;
 

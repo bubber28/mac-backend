@@ -789,17 +789,15 @@ if (
     descricao.toLowerCase().includes("risole") ||
     descricao.toLowerCase().includes("risoli");
 
-  if (ehCombo) {
-    resposta = `Temos sim 😊
+ if (ehCombo) {
+  resposta = `Temos sim 😊
 
 ${nomeServico} sai por ${preco}.
 
-${descricaoFormatada ? `Ele vem com:\n${descricaoFormatada}\n\n` : ""}É uma ótima opção pra lanche, visita ou reunião rápida.
-
-Quer que eu já separe esse pra você ou prefere ver outras opções também?`;
-  } else {
-    resposta = `${nomeServico} custa ${preco}.${descricao ? `\n\n${descricao}` : ""}\n\nSe quiser, eu posso te mostrar outras opções parecidas também.`;
-  }
+${descricaoFormatada ? `Ele vem com:\n${descricaoFormatada}\n\n` : ""}Se quiser, eu também posso te mostrar outros combos ou já te ajudar a finalizar o pedido.`;
+} else {
+  resposta = `${nomeServico} custa ${preco}.${descricao ? `\n\n${descricao}` : ""}\n\nSe quiser, eu posso te mostrar outras opções também.`;
+}
 
   origem_resposta = "banco";
 }

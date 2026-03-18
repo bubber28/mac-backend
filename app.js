@@ -767,15 +767,40 @@ app.get("/teste", async (req, res) => {
     let resposta = "";
     let origem_resposta = "gemini";
 
- if (
+if (
   servicoDetectado &&
   analiseMensagem.intencaoDetectada === "orcamento" &&
   !mensagem.toLowerCase().includes("tem ")
 ) {
   const preco = formatarPreco(servicoDetectado.preco);
+  const nomeServico = (servicoDetectado.nome_servico || "esse combo").trim();
   const descricao = (servicoDetectado.descricao || "").trim();
 
-  resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""}`;
+  const descricaoFormatada = descricao
+    ? descricao
+        .replace(/\s*,\s*/g, "\n- ")
+        .replace(/^/, "- ")
+    : "";
+
+  const ehCombo =
+    nomeServico.toLowerCase().includes("combo") ||
+    descricao.toLowerCase().includes("coxinha") ||
+    descricao.toLowerCase().includes("bolinha") ||
+    descricao.toLowerCase().includes("risole") ||
+    descricao.toLowerCase().includes("risoli");
+
+  if (ehCombo) {
+    resposta = `Temos sim 😊
+
+${nomeServico} sai por ${preco}.
+
+${descricaoFormatada ? `Ele vem com:\n${descricaoFormatada}\n\n` : ""}É uma ótima opção pra lanche, visita ou reunião rápida.
+
+Quer que eu já separe esse pra você ou prefere ver outras opções também?`;
+  } else {
+    resposta = `${nomeServico} custa ${preco}.${descricao ? `\n\n${descricao}` : ""}\n\nSe quiser, eu posso te mostrar outras opções parecidas também.`;
+  }
+
   origem_resposta = "banco";
 }
 

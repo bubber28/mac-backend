@@ -40,60 +40,151 @@ function formatarPreco(valor) {
   });
 }
 
-function encontrarServicoPorMensagem(
-  servicos = [],
-  mensagem = "",
-  contextoVenda = "padrao"
-) {
-  const msg = (mensagem || "").toLowerCase().trim();
+function normalizarTexto(texto = "") {
+  return String(texto)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  if (!msg || !Array.isArray(servicos) || servicos.length === 0) {
-    return null;
+function tokenizarTexto(texto = "") {
+  return normalizarTexto(texto)
+    .split(" ")
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3);
+}
+
+function encontrarServicosPorMensagem(servicos = [], mensagem = "") {
+  const msgNormalizada = normalizarTexto(mensagem);
+  const tokensMensagem = tokenizarTexto(mensagem);
+
+  if (!msgNormalizada || !Array.isArray(servicos) || servicos.length === 0) {
+    return [];
   }
 
-  const servicosOrdenados = [...servicos].sort((a, b) => {
-    const nomeA = (a?.nome_servico || "").length;
-    const nomeB = (b?.nome_servico || "").length;
-    return nomeB - nomeA;
-  });
+  const resultados = servicos
+    .map((servico) => {
+      const nome = normalizarTexto(servico?.nome_servico || "");
+      const descricao = normalizarTexto(servico?.descricao || "");
 
-  if (contextoVenda === "combo") {
-    const encontrouPorIntencaoCombo =
-      msg.includes("combo") ||
-      msg.includes("kit") ||
-      msg.includes("festa") ||
-      msg.includes("evento") ||
-      msg.includes("anivers") ||
-      msg.includes("encomenda") ||
-      msg.includes("cento");
+      if (!nome && !descricao) return null;
 
-    if (encontrouPorIntencaoCombo) {
-      return (
-        servicosOrdenados.find((servico) => {
-          const nome = (servico?.nome_servico || "").toLowerCase().trim();
-          const descricao = (servico?.descricao || "").toLowerCase().trim();
+      let score = 0;
 
-          return (
-            nome.includes("combo") ||
-            descricao.includes("combo") ||
-            descricao.includes("festa") ||
-            descricao.includes("evento") ||
-            descricao.includes("anivers") ||
-            descricao.includes("encomenda") ||
-            descricao.includes("cento")
-          );
-        }) || null
-      );
+      if (nome && msgNormalizada.includes(nome)) score += 10;
+      if (nome && nome.includes(msgNormalizada) && msgNormalizada.length >= 4) {
+        score += 6;
+      }
+
+      for (const token of tokensMensagem) {
+        if (nome.includes(token)) score += 3;
+        if (descricao.includes(token)) score += 1;
+      }
+
+      const termosFortes = [
+        "combo",
+        "combos",
+        "coxinha",
+        "coxinhas",
+        "bolinha",
+        "bolinhas",
+        "queijo",
+        "risole",
+        "risoles",
+        "risoli",
+        "pastel",
+        "pasteis",
+        "pastéis",
+        "milho",
+        "bolo",
+        "bolinho",
+        "bolinhos",
+        "cenoura",
+        "salgado",
+        "salgados",
+        "salgadinho",
+        "salgadinhos"
+      ];
+
+      for (const termo of termosFortes) {
+        if (msgNormalizada.includes(termo) && nome.includes(termo)) score += 4;
+        if (msgNormalizada.includes(termo) && descricao.includes(termo)) {
+          score += 2;
+        }
+      }
+
+      if (score <= 0) return null;
+
+      return {
+        ...servico,
+        _score: score
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b._score - a._score);
+
+  return resultados;
+}
+
+function deduplicarServicos(servicos = []) {
+  const mapa = new Map();
+
+  for (const servico of servicos) {
+    const chave = normalizarTexto(servico?.nome_servico || "");
+    if (!chave) continue;
+
+    if (!mapa.has(chave)) {
+      mapa.set(chave, servico);
     }
   }
 
-  return (
-    servicosOrdenados.find((servico) => {
-      const nome = (servico?.nome_servico || "").toLowerCase().trim();
-      if (!nome) return false;
-      return msg.includes(nome);
-    }) || null
-  );
+  return Array.from(mapa.values());
+}
+
+function construirEvidenciasBanco(servicos = [], mensagem = "", analiseMensagem = null) {
+  const msgLower = normalizarTexto(mensagem);
+  const servicosDetectados = encontrarServicosPorMensagem(servicos, mensagem);
+  const servicoDetectado = servicosDetectados[0] || null;
+
+  const pediuCardapio =
+    msgLower.includes("cardapio") ||
+    msgLower.includes("menu") ||
+    msgLower.includes("mostra") ||
+    msgLower.includes("mostrar") ||
+    msgLower.includes("quero ver") ||
+    msgLower.includes("opcoes") ||
+    msgLower.includes("opcao") ||
+    msgLower.includes("combo") ||
+    msgLower.includes("combos") ||
+    msgLower.includes("salgado") ||
+    msgLower.includes("salgados") ||
+    msgLower.includes("salgadinho") ||
+    msgLower.includes("salgadinhos");
+
+  return {
+    pediu_cardapio: pediuCardapio,
+    intencao_detectada: analiseMensagem?.intencaoDetectada || null,
+    servico_detectado_principal: servicoDetectado
+      ? {
+          nome_servico: servicoDetectado.nome_servico,
+          descricao: servicoDetectado.descricao || "",
+          preco: servicoDetectado.preco ?? null
+        }
+      : null,
+    itens_detectados: servicosDetectados.slice(0, 5).map((s) => ({
+      nome_servico: s.nome_servico,
+      descricao: s.descricao || "",
+      preco: s.preco ?? null
+    })),
+    vitrine_inicial: servicos.slice(0, 8).map((s) => ({
+      nome_servico: s.nome_servico,
+      descricao: s.descricao || "",
+      preco: s.preco ?? null
+    }))
+  };
 }
 
 function validarRespostaMac(texto = "") {
@@ -179,6 +270,7 @@ function criarRespostaFallback({
   estadoConversa = null
 }) {
   const msg = (mensagem || "").toLowerCase().trim();
+  const evidenciasBanco = empresa?.evidencias_banco || null;
 
   const nomeEmpresa = empresa?.nome || empresa?.nome_empresa || "nossa empresa";
 
@@ -233,11 +325,33 @@ function criarRespostaFallback({
     });
   }
 
-  const servicoEncontrado = encontrarServicoPorMensagem(
-    servicos,
-    mensagem,
-    "padrao"
-  );
+  if (
+    evidenciasBanco?.pediu_cardapio &&
+    Array.isArray(evidenciasBanco?.vitrine_inicial) &&
+    evidenciasBanco.vitrine_inicial.length > 0
+  ) {
+    const itens = evidenciasBanco.vitrine_inicial
+      .slice(0, 8)
+      .map((item) => {
+        const preco = formatarPreco(item.preco);
+        return `• ${item.nome_servico}${preco ? ` — ${preco}` : ""}`;
+      })
+      .join("\n");
+
+    return `Claro! Aqui estão algumas opções do nosso cardápio:\n\n${itens}\n\nSe quiser, eu também posso te mostrar só os combos ou só os salgados.`;
+  }
+
+  if (evidenciasBanco?.servico_detectado_principal) {
+    const item = evidenciasBanco.servico_detectado_principal;
+    const preco = formatarPreco(item.preco);
+
+    return `${item.nome_servico}${preco ? ` custa ${preco}.` : "."}${
+      item.descricao ? ` ${item.descricao}` : ""
+    }`;
+  }
+
+  const servicosDetectados = encontrarServicosPorMensagem(servicos, mensagem);
+  const servicoEncontrado = servicosDetectados[0] || null;
 
   if (servicoEncontrado) {
     const nomeServico = servicoEncontrado.nome_servico || "esse serviço";
@@ -413,175 +527,8 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
     intencao_detectada: analiseMensagem.intencaoDetectada || null,
     tem_girias: analiseMensagem.temGirias ?? null,
     caixa_alta: analiseMensagem.caixaAlta ?? null,
-    perfil_hipotese: analiseMensagem.perfilHipotese || null,
-    estrategia: analiseMensagem.estrategia || null,
-    score_d: analiseMensagem.scoreD || 0,
-    score_i: analiseMensagem.scoreI || 0,
-    score_s: analiseMensagem.scoreS || 0,
-    score_c: analiseMensagem.scoreC || 0
-  };
-
-  const { error } = await supabase
-    .from("analise_conversa_mac")
-    .insert(payload);
-
-  if (error) {
-    throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
-  }
-}
-
-function calcularPerfilPorScores(scoreD, scoreI, scoreS, scoreC) {
-  const scores = [
-    { perfil: "D", valor: scoreD || 0 },
-    { perfil: "I", valor: scoreI || 0 },
-    { perfil: "S", valor: scoreS || 0 },
-    { perfil: "C", valor: scoreC || 0 }
-  ].sort((a, b) => b.valor - a.valor);
-
-  const maior = scores[0];
-  const segundo = scores[1];
-
-  if (maior.valor === 0) return "N";
-
-  if (segundo.valor > 0 && maior.valor - segundo.valor <= 1) {
-    const combinacao = `${maior.perfil}${segundo.perfil}`;
-
-    if (combinacao === "ID") return "DI";
-    if (combinacao === "CD") return "DC";
-    if (combinacao === "SI") return "IS";
-    if (combinacao === "CS") return "SC";
-    if (["DI", "DC", "IS", "SC"].includes(combinacao)) return combinacao;
-  }
-
-  return maior.perfil;
-}
-
-function calcularEstrategiaPorPerfil(perfil) {
-  if (perfil === "D") return "resposta_curta_direta";
-  if (perfil === "I") return "resposta_amigavel_dinamica";
-  if (perfil === "S") return "resposta_calma_acolhedora";
-  if (perfil === "C") return "resposta_clara_detalhada";
-  if (perfil === "DI") return "resposta_direta_com_energia";
-  if (perfil === "DC") return "resposta_curta_clara";
-  if (perfil === "IS") return "resposta_amigavel_empatica";
-  if (perfil === "SC") return "resposta_segura_organizada";
-  return "resposta_equilibrada";
-}
-
-function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
-  const total = (scoreD || 0) + (scoreI || 0) + (scoreS || 0) + (scoreC || 0);
-
-  if (total === 0) return 0.5;
-
-  const maior = Math.max(scoreD || 0, scoreI || 0, scoreS || 0, scoreC || 0);
-  return Number((maior / total).toFixed(2));
-} 
-async function atualizarPerfilLead(leadId, analiseMensagem) {
-  if (!leadId || !analiseMensagem) return;
-
-  const deltaD = analiseMensagem.scoreD || 0;
-  const deltaI = analiseMensagem.scoreI || 0;
-  const deltaS = analiseMensagem.scoreS || 0;
-  const deltaC = analiseMensagem.scoreC || 0;
-
-  const { data: perfilExistente } = await supabase
-    .from("perfil_lead_mac")
-    .select("*")
-    .eq("lead_id", leadId)
-    .maybeSingle();
-
-  const novoScoreD = (perfilExistente?.score_d || 0) + deltaD;
-  const novoScoreI = (perfilExistente?.score_i || 0) + deltaI;
-  const novoScoreS = (perfilExistente?.score_s || 0) + deltaS;
-  const novoScoreC = (perfilExistente?.score_c || 0) + deltaC;
-
-  const perfilEstimado = calcularPerfilPorScores(
-    novoScoreD,
-    novoScoreI,
-    novoScoreS,
-    novoScoreC
-  );
-
-  const confianca = calcularConfiancaPorScores(
-    novoScoreD,
-    novoScoreI,
-    novoScoreS,
-    novoScoreC
-  );
-
-  const payload = {
-    lead_id: leadId,
-    perfil_estimado: perfilEstimado,
-    confianca,
-    score_d: novoScoreD,
-    score_i: novoScoreI,
-    score_s: novoScoreS,
-    score_c: novoScoreC,
-    updated_at: new Date().toISOString()
-  };
-
-  if (perfilExistente?.id) {
-    await supabase
-      .from("perfil_lead_mac")
-      .update(payload)
-      .eq("id", perfilExistente.id);
-  } else {
-    await supabase.from("perfil_lead_mac").insert(payload);
-  }
-}
-  function mapearEstadoConversa(analiseMensagem) {
-  const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
-
-  if (intencao === "orcamento") {
-    return {
-      etapa_conversa: "interesse",
-      ultima_intencao: "orcamento",
-      ultimo_assunto: "preco",
-      precisa_followup: true,
-      ultimo_objetivo: "informar_valor"
-    };
-  }
-
-  if (intencao === "explicacao") {
-    return {
-      etapa_conversa: "consideracao",
-      ultima_intencao: "explicacao",
-      ultimo_assunto: "entendimento_servico",
-      precisa_followup: true,
-      ultimo_objetivo: "educar_cliente"
-    };
-  }
-
-  if (intencao === "disponibilidade") {
-    return {
-      etapa_conversa: "consideracao",
-      ultima_intencao: "disponibilidade",
-      ultimo_assunto: "horario",
-      precisa_followup: true,
-      ultimo_objetivo: "informar_disponibilidade"
-    };
-  }
-
-  if (intencao === "agendamento") {
-    return {
-      etapa_conversa: "fechamento",
-      ultima_intencao: "agendamento",
-      ultimo_assunto: "marcacao",
-      precisa_followup: false,
-      ultimo_objetivo: "levar_para_marcacao"
-    };
-  }
-
-  return {
-    etapa_conversa: "aberta",
-    ultima_intencao: intencao,
-    ultimo_assunto: "duvida_geral",
-    precisa_followup: false,
-    ultimo_objetivo: "manter_conversa"
-  };
-}
-
-async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
+    perfil_hipotese: analiseMensagem.perfilHipotese
+    async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem) return;
 
   const estadoMapeado = mapearEstadoConversa(analiseMensagem);
@@ -760,134 +707,51 @@ app.get("/teste", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
-    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
+    const servicosBase = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
-    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
+    const servicos = deduplicarServicos(servicosBase);
+
+    const evidenciasBanco = construirEvidenciasBanco(
+      servicos,
+      mensagem,
+      analiseMensagem
+    );
 
     let resposta = "";
     let origem_resposta = "gemini";
 
-if (
-  servicoDetectado &&
-  analiseMensagem.intencaoDetectada === "orcamento" &&
-  !mensagem.toLowerCase().includes("tem ")
-) {
-  const preco = formatarPreco(servicoDetectado.preco);
-  const nomeServico = (servicoDetectado.nome_servico || "esse combo").trim();
-  const descricao = (servicoDetectado.descricao || "").trim();
+    try {
+      const resultadoIA = await gerarRespostaComGemini(
+        {
+          ...contexto,
+          evidencias_banco: evidenciasBanco
+        },
+        mensagem,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      );
 
-  const descricaoFormatada = descricao
-    ? descricao
-        .replace(/\s*,\s*/g, "\n- ")
-        .replace(/^/, "- ")
-    : "";
+      resposta = resultadoIA.resposta;
 
-  const ehCombo =
-    nomeServico.toLowerCase().includes("combo") ||
-    descricao.toLowerCase().includes("coxinha") ||
-    descricao.toLowerCase().includes("bolinha") ||
-    descricao.toLowerCase().includes("risole") ||
-    descricao.toLowerCase().includes("risoli");
-
- if (ehCombo) {
-  resposta = `Temos sim 😊
-
-${nomeServico} sai por ${preco}.
-
-${descricaoFormatada ? `Ele vem com:\n${descricaoFormatada}\n\n` : ""}Se quiser, eu também posso te mostrar outros combos ou já te ajudar a finalizar o pedido.`;
-} else {
-  resposta = `${nomeServico} custa ${preco}.${descricao ? `\n\n${descricao}` : ""}\n\nSe quiser, eu posso te mostrar outras opções também.`;
-}
-
-  origem_resposta = "banco";
-}
-
-    if (
-      servicoDetectado &&
-      analiseMensagem.intencaoDetectada === "explicacao" &&
-      !resposta
-    ) {
-      const descricao = (servicoDetectado.descricao || "").trim();
-      const preco = formatarPreco(servicoDetectado.preco);
-
-      resposta = `Sim, realizamos ${servicoDetectado.nome_servico}.${descricao ? ` ${descricao}` : ""}${preco ? ` Se quiser, também posso te passar o valor: ${preco}.` : ""}`;
-      origem_resposta = "banco";
-    }
-// ===============================
-// CONTROLE DE ESTRATÉGIA DE RESPOSTA
-// ===============================
-
-let respostaEstrategica = null;
-
-if (!servicoDetectado) {
-  const msgLower = (mensagem || "").toLowerCase();
-
-  const pediuCardapio =
-    msgLower.includes("cardápio") ||
-    msgLower.includes("cardapio") ||
-    msgLower.includes("menu") ||
-    msgLower.includes("combo") ||
-    msgLower.includes("combos") ||
-    msgLower.includes("salgado") ||
-    msgLower.includes("salgadinho") ||
-    msgLower.includes("salgadinhos") ||
-    msgLower.includes("mostre o que tem") ||
-    msgLower.includes("me mostre o que tem") ||
-    msgLower.includes("mostrar o que tem") ||
-    msgLower.includes("quero ver") ||
-    msgLower.includes("quero comprar");
-
-  if (pediuCardapio && Array.isArray(servicos) && servicos.length > 0) {
-    const itens = servicos
-      .slice(0, 8)
-      .map((s) => {
-        const preco = formatarPreco(s.preco);
-        return `• ${s.nome_servico}${preco ? ` — ${preco}` : ""}`;
-      })
-      .join("\n");
-
-    resposta = `Claro! Aqui estão algumas opções do nosso cardápio:\n\n${itens}\n\nSe quiser, eu também posso te mostrar só os combos ou só os salgados.`;
-    origem_resposta = "banco";
-  } else if (
-    analiseMensagem.intencaoDetectada === "descoberta" ||
-    analiseMensagem.intencaoDetectada === "duvida_geral"
-  ) {
-    respostaEstrategica =
-      "Temos várias opções 😊 você quer algo pra consumo rápido ou para alguma ocasião especial?";
-  }
-}
-    if (resposta && respostaEstrategica) {
-  resposta = `${resposta}\n\n${respostaEstrategica}`;
-  origem_resposta = "banco+estrategia";
-}
-    if (!resposta) {
-      try {
-        const resultadoIA = await gerarRespostaComGemini(
-          contexto,
-          mensagem,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa
-        );
-
-        resposta = resultadoIA.resposta;
-
-        if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
-          throw new Error("Resposta vazia do Gemini");
-        }
-      } catch (geminiError) {
-        origem_resposta = "fallback";
-        resposta = criarRespostaFallback({
-          mensagem,
-          empresa: contexto?.empresa || {},
-          servicos,
-          faq,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa
-        });
-        console.error("Erro Gemini /teste:", geminiError);
+      if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
+        throw new Error("Resposta vazia do Gemini");
       }
+    } catch (geminiError) {
+      origem_resposta = "fallback";
+      resposta = criarRespostaFallback({
+        mensagem,
+        empresa: {
+          ...(contexto?.empresa || {}),
+          evidencias_banco: evidenciasBanco
+        },
+        servicos,
+        faq,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      });
+      console.error("Erro Gemini /teste:", geminiError);
     }
 
     const { error: respostaError } = await supabase.rpc(
@@ -914,7 +778,8 @@ if (!servicoDetectado) {
       origem_resposta,
       analiseMensagem,
       perfilLead,
-      estadoConversa
+      estadoConversa,
+      evidenciasBanco
     });
   } catch (err) {
     return res.status(500).json({
@@ -944,8 +809,6 @@ app.post("/chat", async (req, res) => {
     if (erroConfig) {
       console.log("ERRO AO BUSCAR CONFIG:", erroConfig);
     }
-
-    console.log("CONFIG EMPRESA:", configEmpresa);
 
     if (!empresa_id || !telefone || !mensagem) {
       return res.status(400).json({
@@ -993,7 +856,7 @@ app.post("/chat", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
-    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
+    const servicosContexto = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
 
     let focoCombo = false;
@@ -1009,92 +872,74 @@ app.post("/chat", async (req, res) => {
 
     if (focoCombo) {
       const combos = produtosFiltrados.filter((p) => p.tipo_item === "combo");
-
       if (combos.length > 0) {
         produtosFiltrados = combos;
       }
     }
 
-    if (produtosFiltrados.length > 0) {
-      const produtosComoServicos = produtosFiltrados.map((p) => ({
-        nome_servico: p.nome,
-        preco: p.preco,
-        descricao: p.descricao || ""
-      }));
+    const produtosComoServicos = produtosFiltrados.map((p) => ({
+      nome_servico: p.nome,
+      preco: p.preco,
+      descricao: p.descricao || ""
+    }));
 
-      servicos.push(...produtosComoServicos);
-    }
+    const servicos = deduplicarServicos([
+      ...servicosContexto,
+      ...produtosComoServicos
+    ]);
 
-    let contextoVenda = "padrao";
-
-    if (configEmpresa?.modelo_venda === "combo") {
-      contextoVenda = "combo";
-    }
-
-    if (configEmpresa?.modelo_venda === "servico") {
-      contextoVenda = "servico";
-    }
-
-    const servicoDetectado = encontrarServicoPorMensagem(
+    const evidenciasBanco = construirEvidenciasBanco(
       servicos,
       mensagem,
-      contextoVenda
+      analiseMensagem
     );
+
+    console.log("Mensagem:", mensagem);
+    console.log("Intenção:", analiseMensagem?.intencaoDetectada);
+    console.log("Serviços carregados:", servicos?.map((s) => s.nome_servico));
+    console.log(
+      "Serviços detectados:",
+      evidenciasBanco?.itens_detectados?.map((s) => s.nome_servico)
+    );
+    console.log("Evidências banco:", evidenciasBanco);
 
     let resposta = "";
     let origem_resposta = "gemini";
 
-    if (servicoDetectado && analiseMensagem.intencaoDetectada === "orcamento") {
-      const preco = formatarPreco(servicoDetectado.preco);
-      const descricao = (servicoDetectado.descricao || "").trim();
+    try {
+      const resultadoIA = await gerarRespostaComGemini(
+        {
+          ...contexto,
+          evidencias_banco: evidenciasBanco
+        },
+        mensagem,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      );
 
-      resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""} Se quiser, também posso te explicar melhor ou te ajudar com o próximo passo.`;
-      origem_resposta = "banco";
-    }
+      resposta = resultadoIA.resposta;
 
-    if (
-      servicoDetectado &&
-      analiseMensagem.intencaoDetectada === "explicacao" &&
-      !resposta
-    ) {
-      const descricao = (servicoDetectado.descricao || "").trim();
-      const preco = formatarPreco(servicoDetectado.preco);
-
-      resposta = `Sim, temos ${servicoDetectado.nome_servico}.${descricao ? ` ${descricao}` : ""}${preco ? ` Se quiser, também posso te passar o valor: ${preco}.` : ""}`;
-      origem_resposta = "banco";
-    }
-
-    if (!resposta) {
-      try {
-        const resultadoIA = await gerarRespostaComGemini(
-          contexto,
-          mensagem,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa
-        );
-
-        resposta = resultadoIA.resposta;
-
-        // Validação desativada temporariamente
-        // if (!validarRespostaMac(resposta)) {
-        //   throw new Error("Resposta do Gemini inválida ou genérica");
-        // }
-      } catch (geminiError) {
-        origem_resposta = "fallback";
-
-        resposta = criarRespostaFallback({
-          mensagem,
-          empresa: contexto?.empresa || {},
-          servicos,
-          faq,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa
-        });
-
-        console.error("Erro Gemini /chat:", geminiError);
+      if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
+        throw new Error("Resposta vazia do Gemini");
       }
+    } catch (geminiError) {
+      origem_resposta = "fallback";
+
+      resposta = criarRespostaFallback({
+        mensagem,
+        empresa: {
+          ...(contexto?.empresa || {}),
+          evidencias_banco: evidenciasBanco
+        },
+        servicos,
+        faq,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      });
+
+      console.error("Erro Gemini /chat:", geminiError);
     }
 
     const { error: respostaError } = await supabase.rpc(
@@ -1120,7 +965,8 @@ app.post("/chat", async (req, res) => {
       origem_resposta,
       analiseMensagem,
       perfilLead,
-      estadoConversa
+      estadoConversa,
+      evidenciasBanco
     });
   } catch (err) {
     return res.status(500).json({

@@ -527,8 +527,23 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
     intencao_detectada: analiseMensagem.intencaoDetectada || null,
     tem_girias: analiseMensagem.temGirias ?? null,
     caixa_alta: analiseMensagem.caixaAlta ?? null,
-    perfil_hipotese: analiseMensagem.perfilHipotese
-    async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
+    perfil_hipotese: analiseMensagem.perfilHipotese || null,
+    estrategia: analiseMensagem.estrategia || null,
+    score_d: analiseMensagem.scoreD || 0,
+    score_i: analiseMensagem.scoreI || 0,
+    score_s: analiseMensagem.scoreS || 0,
+    score_c: analiseMensagem.scoreC || 0
+  };
+
+  const { error } = await supabase
+    .from("analise_conversa_mac")
+    .insert(payload);
+
+  if (error) {
+    throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
+  }
+}
+async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem) return;
 
   const estadoMapeado = mapearEstadoConversa(analiseMensagem);

@@ -767,17 +767,17 @@ app.get("/teste", async (req, res) => {
     let resposta = "";
     let origem_resposta = "gemini";
 
-    if (
+  if (
   servicoDetectado &&
   analiseMensagem.intencaoDetectada === "orcamento" &&
   !mensagem.toLowerCase().includes("tem ")
 ) {
-      const preco = formatarPreco(servicoDetectado.preco);
-      const descricao = (servicoDetectado.descricao || "").trim();
+  const preco = formatarPreco(servicoDetectado.preco);
+  const descricao = (servicoDetectado.descricao || "").trim();
 
-      resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""} Se quiser, posso te explicar como funciona ou verificar horários disponíveis.`;
-      origem_resposta = "banco";
-    }
+ resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` :
+  origem_resposta = "banco";
+}
 
     if (
       servicoDetectado &&
@@ -805,9 +805,9 @@ if (!servicoDetectado) {
      "Temos várias opções 😊 você quer algo pra consumo rápido ou para alguma ocasião especial?";
   }
 }
-    if (!resposta && respostaEstrategica) {
-  resposta = respostaEstrategica;
-  origem_resposta = "estrategia";
+    if (resposta && respostaEstrategica) {
+  resposta = `${resposta}\n\n${respostaEstrategica}`;
+  origem_resposta = "banco+estrategia";
 }
     if (!resposta) {
       try {

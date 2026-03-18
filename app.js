@@ -803,14 +803,16 @@ if (!servicoDetectado) {
     msgLower.includes("cardápio") ||
     msgLower.includes("cardapio") ||
     msgLower.includes("menu") ||
-    msgLower.includes("mostra o que") ||
-    msgLower.includes("me mostra o que") ||
-    msgLower.includes("quais opções") ||
-    msgLower.includes("quais opcoes") ||
-    msgLower.includes("o que vocês têm") ||
-    msgLower.includes("o que voces tem") ||
-    msgLower.includes("o que tem") ||
-    msgLower.includes("quero ver");
+    msgLower.includes("combo") ||
+    msgLower.includes("combos") ||
+    msgLower.includes("salgado") ||
+    msgLower.includes("salgadinho") ||
+    msgLower.includes("salgadinhos") ||
+    msgLower.includes("mostre o que tem") ||
+    msgLower.includes("me mostre o que tem") ||
+    msgLower.includes("mostrar o que tem") ||
+    msgLower.includes("quero ver") ||
+    msgLower.includes("quero comprar");
 
   if (pediuCardapio && Array.isArray(servicos) && servicos.length > 0) {
     const itens = servicos

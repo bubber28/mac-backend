@@ -40,151 +40,60 @@ function formatarPreco(valor) {
   });
 }
 
-function normalizarTexto(texto = "") {
-  return String(texto)
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+function encontrarServicoPorMensagem(
+  servicos = [],
+  mensagem = "",
+  contextoVenda = "padrao"
+) {
+  const msg = (mensagem || "").toLowerCase().trim();
 
-function tokenizarTexto(texto = "") {
-  return normalizarTexto(texto)
-    .split(" ")
-    .map((t) => t.trim())
-    .filter((t) => t.length >= 3);
-}
-
-function encontrarServicosPorMensagem(servicos = [], mensagem = "") {
-  const msgNormalizada = normalizarTexto(mensagem);
-  const tokensMensagem = tokenizarTexto(mensagem);
-
-  if (!msgNormalizada || !Array.isArray(servicos) || servicos.length === 0) {
-    return [];
+  if (!msg || !Array.isArray(servicos) || servicos.length === 0) {
+    return null;
   }
 
-  const resultados = servicos
-    .map((servico) => {
-      const nome = normalizarTexto(servico?.nome_servico || "");
-      const descricao = normalizarTexto(servico?.descricao || "");
+  const servicosOrdenados = [...servicos].sort((a, b) => {
+    const nomeA = (a?.nome_servico || "").length;
+    const nomeB = (b?.nome_servico || "").length;
+    return nomeB - nomeA;
+  });
 
-      if (!nome && !descricao) return null;
+  if (contextoVenda === "combo") {
+    const encontrouPorIntencaoCombo =
+      msg.includes("combo") ||
+      msg.includes("kit") ||
+      msg.includes("festa") ||
+      msg.includes("evento") ||
+      msg.includes("anivers") ||
+      msg.includes("encomenda") ||
+      msg.includes("cento");
 
-      let score = 0;
+    if (encontrouPorIntencaoCombo) {
+      return (
+        servicosOrdenados.find((servico) => {
+          const nome = (servico?.nome_servico || "").toLowerCase().trim();
+          const descricao = (servico?.descricao || "").toLowerCase().trim();
 
-      if (nome && msgNormalizada.includes(nome)) score += 10;
-      if (nome && nome.includes(msgNormalizada) && msgNormalizada.length >= 4) {
-        score += 6;
-      }
-
-      for (const token of tokensMensagem) {
-        if (nome.includes(token)) score += 3;
-        if (descricao.includes(token)) score += 1;
-      }
-
-      const termosFortes = [
-        "combo",
-        "combos",
-        "coxinha",
-        "coxinhas",
-        "bolinha",
-        "bolinhas",
-        "queijo",
-        "risole",
-        "risoles",
-        "risoli",
-        "pastel",
-        "pasteis",
-        "pastéis",
-        "milho",
-        "bolo",
-        "bolinho",
-        "bolinhos",
-        "cenoura",
-        "salgado",
-        "salgados",
-        "salgadinho",
-        "salgadinhos"
-      ];
-
-      for (const termo of termosFortes) {
-        if (msgNormalizada.includes(termo) && nome.includes(termo)) score += 4;
-        if (msgNormalizada.includes(termo) && descricao.includes(termo)) {
-          score += 2;
-        }
-      }
-
-      if (score <= 0) return null;
-
-      return {
-        ...servico,
-        _score: score
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b._score - a._score);
-
-  return resultados;
-}
-
-function deduplicarServicos(servicos = []) {
-  const mapa = new Map();
-
-  for (const servico of servicos) {
-    const chave = normalizarTexto(servico?.nome_servico || "");
-    if (!chave) continue;
-
-    if (!mapa.has(chave)) {
-      mapa.set(chave, servico);
+          return (
+            nome.includes("combo") ||
+            descricao.includes("combo") ||
+            descricao.includes("festa") ||
+            descricao.includes("evento") ||
+            descricao.includes("anivers") ||
+            descricao.includes("encomenda") ||
+            descricao.includes("cento")
+          );
+        }) || null
+      );
     }
   }
 
-  return Array.from(mapa.values());
-}
-
-function construirEvidenciasBanco(servicos = [], mensagem = "", analiseMensagem = null) {
-  const msgLower = normalizarTexto(mensagem);
-  const servicosDetectados = encontrarServicosPorMensagem(servicos, mensagem);
-  const servicoDetectado = servicosDetectados[0] || null;
-
-  const pediuCardapio =
-    msgLower.includes("cardapio") ||
-    msgLower.includes("menu") ||
-    msgLower.includes("mostra") ||
-    msgLower.includes("mostrar") ||
-    msgLower.includes("quero ver") ||
-    msgLower.includes("opcoes") ||
-    msgLower.includes("opcao") ||
-    msgLower.includes("combo") ||
-    msgLower.includes("combos") ||
-    msgLower.includes("salgado") ||
-    msgLower.includes("salgados") ||
-    msgLower.includes("salgadinho") ||
-    msgLower.includes("salgadinhos");
-
-  return {
-    pediu_cardapio: pediuCardapio,
-    intencao_detectada: analiseMensagem?.intencaoDetectada || null,
-    servico_detectado_principal: servicoDetectado
-      ? {
-          nome_servico: servicoDetectado.nome_servico,
-          descricao: servicoDetectado.descricao || "",
-          preco: servicoDetectado.preco ?? null
-        }
-      : null,
-    itens_detectados: servicosDetectados.slice(0, 5).map((s) => ({
-      nome_servico: s.nome_servico,
-      descricao: s.descricao || "",
-      preco: s.preco ?? null
-    })),
-    vitrine_inicial: servicos.slice(0, 8).map((s) => ({
-      nome_servico: s.nome_servico,
-      descricao: s.descricao || "",
-      preco: s.preco ?? null
-    }))
-  };
+  return (
+    servicosOrdenados.find((servico) => {
+      const nome = (servico?.nome_servico || "").toLowerCase().trim();
+      if (!nome) return false;
+      return msg.includes(nome);
+    }) || null
+  );
 }
 
 function validarRespostaMac(texto = "") {
@@ -270,7 +179,6 @@ function criarRespostaFallback({
   estadoConversa = null
 }) {
   const msg = (mensagem || "").toLowerCase().trim();
-  const evidenciasBanco = empresa?.evidencias_banco || null;
 
   const nomeEmpresa = empresa?.nome || empresa?.nome_empresa || "nossa empresa";
 
@@ -325,33 +233,11 @@ function criarRespostaFallback({
     });
   }
 
-  if (
-    evidenciasBanco?.pediu_cardapio &&
-    Array.isArray(evidenciasBanco?.vitrine_inicial) &&
-    evidenciasBanco.vitrine_inicial.length > 0
-  ) {
-    const itens = evidenciasBanco.vitrine_inicial
-      .slice(0, 8)
-      .map((item) => {
-        const preco = formatarPreco(item.preco);
-        return `• ${item.nome_servico}${preco ? ` — ${preco}` : ""}`;
-      })
-      .join("\n");
-
-    return `Claro! Aqui estão algumas opções do nosso cardápio:\n\n${itens}\n\nSe quiser, eu também posso te mostrar só os combos ou só os salgados.`;
-  }
-
-  if (evidenciasBanco?.servico_detectado_principal) {
-    const item = evidenciasBanco.servico_detectado_principal;
-    const preco = formatarPreco(item.preco);
-
-    return `${item.nome_servico}${preco ? ` custa ${preco}.` : "."}${
-      item.descricao ? ` ${item.descricao}` : ""
-    }`;
-  }
-
-  const servicosDetectados = encontrarServicosPorMensagem(servicos, mensagem);
-  const servicoEncontrado = servicosDetectados[0] || null;
+  const servicoEncontrado = encontrarServicoPorMensagem(
+    servicos,
+    mensagem,
+    "padrao"
+  );
 
   if (servicoEncontrado) {
     const nomeServico = servicoEncontrado.nome_servico || "esse serviço";
@@ -543,6 +429,7 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
     throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
   }
 }
+
 function calcularPerfilPorScores(scoreD, scoreI, scoreS, scoreC) {
   const scores = [
     { perfil: "D", valor: scoreD || 0 },
@@ -569,6 +456,18 @@ function calcularPerfilPorScores(scoreD, scoreI, scoreS, scoreC) {
   return maior.perfil;
 }
 
+function calcularEstrategiaPorPerfil(perfil) {
+  if (perfil === "D") return "resposta_curta_direta";
+  if (perfil === "I") return "resposta_amigavel_dinamica";
+  if (perfil === "S") return "resposta_calma_acolhedora";
+  if (perfil === "C") return "resposta_clara_detalhada";
+  if (perfil === "DI") return "resposta_direta_com_energia";
+  if (perfil === "DC") return "resposta_curta_clara";
+  if (perfil === "IS") return "resposta_amigavel_empatica";
+  if (perfil === "SC") return "resposta_segura_organizada";
+  return "resposta_equilibrada";
+}
+
 function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
   const total = (scoreD || 0) + (scoreI || 0) + (scoreS || 0) + (scoreC || 0);
 
@@ -576,8 +475,7 @@ function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
 
   const maior = Math.max(scoreD || 0, scoreI || 0, scoreS || 0, scoreC || 0);
   return Number((maior / total).toFixed(2));
-}
-
+} 
 async function atualizarPerfilLead(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem) return;
 
@@ -586,15 +484,11 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
   const deltaS = analiseMensagem.scoreS || 0;
   const deltaC = analiseMensagem.scoreC || 0;
 
-  const { data: perfilExistente, error: perfilError } = await supabase
+  const { data: perfilExistente } = await supabase
     .from("perfil_lead_mac")
     .select("*")
     .eq("lead_id", leadId)
     .maybeSingle();
-
-  if (perfilError) {
-    throw new Error(`Erro ao buscar perfil do lead: ${perfilError.message}`);
-  }
 
   const novoScoreD = (perfilExistente?.score_d || 0) + deltaD;
   const novoScoreI = (perfilExistente?.score_i || 0) + deltaI;
@@ -627,91 +521,66 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
   };
 
   if (perfilExistente?.id) {
-    const { error: updateError } = await supabase
+    await supabase
       .from("perfil_lead_mac")
       .update(payload)
       .eq("id", perfilExistente.id);
-
-    if (updateError) {
-      throw new Error(`Erro ao atualizar perfil do lead: ${updateError.message}`);
-    }
   } else {
-    const { error: insertError } = await supabase
-      .from("perfil_lead_mac")
-      .insert(payload);
-
-    if (insertError) {
-      throw new Error(`Erro ao criar perfil do lead: ${insertError.message}`);
-    }
+    await supabase.from("perfil_lead_mac").insert(payload);
   }
 }
-async function atualizarPerfilLead(leadId, analiseMensagem) {
-  if (!leadId || !analiseMensagem) return;
+  function mapearEstadoConversa(analiseMensagem) {
+  const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
 
-  const deltaD = analiseMensagem.scoreD || 0;
-  const deltaI = analiseMensagem.scoreI || 0;
-  const deltaS = analiseMensagem.scoreS || 0;
-  const deltaC = analiseMensagem.scoreC || 0;
-
-  const { data: perfilExistente, error: perfilError } = await supabase
-    .from("perfil_lead_mac")
-    .select("*")
-    .eq("lead_id", leadId)
-    .maybeSingle();
-
-  if (perfilError) {
-    throw new Error(`Erro ao buscar perfil do lead: ${perfilError.message}`);
+  if (intencao === "orcamento") {
+    return {
+      etapa_conversa: "interesse",
+      ultima_intencao: "orcamento",
+      ultimo_assunto: "preco",
+      precisa_followup: true,
+      ultimo_objetivo: "informar_valor"
+    };
   }
 
-  const novoScoreD = (perfilExistente?.score_d || 0) + deltaD;
-  const novoScoreI = (perfilExistente?.score_i || 0) + deltaI;
-  const novoScoreS = (perfilExistente?.score_s || 0) + deltaS;
-  const novoScoreC = (perfilExistente?.score_c || 0) + deltaC;
+  if (intencao === "explicacao") {
+    return {
+      etapa_conversa: "consideracao",
+      ultima_intencao: "explicacao",
+      ultimo_assunto: "entendimento_servico",
+      precisa_followup: true,
+      ultimo_objetivo: "educar_cliente"
+    };
+  }
 
-  const perfilEstimado = calcularPerfilPorScores(
-    novoScoreD,
-    novoScoreI,
-    novoScoreS,
-    novoScoreC
-  );
+  if (intencao === "disponibilidade") {
+    return {
+      etapa_conversa: "consideracao",
+      ultima_intencao: "disponibilidade",
+      ultimo_assunto: "horario",
+      precisa_followup: true,
+      ultimo_objetivo: "informar_disponibilidade"
+    };
+  }
 
-  const confianca = calcularConfiancaPorScores(
-    novoScoreD,
-    novoScoreI,
-    novoScoreS,
-    novoScoreC
-  );
+  if (intencao === "agendamento") {
+    return {
+      etapa_conversa: "fechamento",
+      ultima_intencao: "agendamento",
+      ultimo_assunto: "marcacao",
+      precisa_followup: false,
+      ultimo_objetivo: "levar_para_marcacao"
+    };
+  }
 
-  const payload = {
-    lead_id: leadId,
-    perfil_estimado: perfilEstimado,
-    confianca,
-    score_d: novoScoreD,
-    score_i: novoScoreI,
-    score_s: novoScoreS,
-    score_c: novoScoreC,
-    updated_at: new Date().toISOString()
+  return {
+    etapa_conversa: "aberta",
+    ultima_intencao: intencao,
+    ultimo_assunto: "duvida_geral",
+    precisa_followup: false,
+    ultimo_objetivo: "manter_conversa"
   };
-
-  if (perfilExistente?.id) {
-    const { error: updateError } = await supabase
-      .from("perfil_lead_mac")
-      .update(payload)
-      .eq("id", perfilExistente.id);
-
-    if (updateError) {
-      throw new Error(`Erro ao atualizar perfil do lead: ${updateError.message}`);
-    }
-  } else {
-    const { error: insertError } = await supabase
-      .from("perfil_lead_mac")
-      .insert(payload);
-
-    if (insertError) {
-      throw new Error(`Erro ao criar perfil do lead: ${insertError.message}`);
-    }
-  }
 }
+
 async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem) return;
 
@@ -891,51 +760,83 @@ app.get("/teste", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
-    const servicosBase = contexto?.servicos || contexto?.servicos_empresa || [];
+    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
-    const servicos = deduplicarServicos(servicosBase);
-
-    const evidenciasBanco = construirEvidenciasBanco(
-      servicos,
-      mensagem,
-      analiseMensagem
-    );
+    const servicoDetectado = encontrarServicoPorMensagem(servicos, mensagem);
 
     let resposta = "";
     let origem_resposta = "gemini";
 
-    try {
-      const resultadoIA = await gerarRespostaComGemini(
-        {
-          ...contexto,
-          evidencias_banco: evidenciasBanco
-        },
-        mensagem,
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      );
+    if (
+  servicoDetectado &&
+  analiseMensagem.intencaoDetectada === "orcamento" &&
+  !mensagem.toLowerCase().includes("tem ")
+) {
+      const preco = formatarPreco(servicoDetectado.preco);
+      const descricao = (servicoDetectado.descricao || "").trim();
 
-      resposta = resultadoIA.resposta;
+      resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""} Se quiser, posso te explicar como funciona ou verificar horários disponíveis.`;
+      origem_resposta = "banco";
+    }
 
-      if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
-        throw new Error("Resposta vazia do Gemini");
+    if (
+      servicoDetectado &&
+      analiseMensagem.intencaoDetectada === "explicacao" &&
+      !resposta
+    ) {
+      const descricao = (servicoDetectado.descricao || "").trim();
+      const preco = formatarPreco(servicoDetectado.preco);
+
+      resposta = `Sim, realizamos ${servicoDetectado.nome_servico}.${descricao ? ` ${descricao}` : ""}${preco ? ` Se quiser, também posso te passar o valor: ${preco}.` : ""}`;
+      origem_resposta = "banco";
+    }
+// ===============================
+// CONTROLE DE ESTRATÉGIA DE RESPOSTA
+// ===============================
+
+let respostaEstrategica = null;
+
+if (!servicoDetectado) {
+  if (
+    analiseMensagem.intencaoDetectada === "descoberta" ||
+    analiseMensagem.intencaoDetectada === "duvida_geral"
+  ) {
+    respostaEstrategica =
+     "Temos várias opções 😊 você quer algo pra consumo rápido ou para alguma ocasião especial?";
+  }
+}
+    if (!resposta && respostaEstrategica) {
+  resposta = respostaEstrategica;
+  origem_resposta = "estrategia";
+}
+    if (!resposta) {
+      try {
+        const resultadoIA = await gerarRespostaComGemini(
+          contexto,
+          mensagem,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        );
+
+        resposta = resultadoIA.resposta;
+
+        if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
+          throw new Error("Resposta vazia do Gemini");
+        }
+      } catch (geminiError) {
+        origem_resposta = "fallback";
+        resposta = criarRespostaFallback({
+          mensagem,
+          empresa: contexto?.empresa || {},
+          servicos,
+          faq,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        });
+        console.error("Erro Gemini /teste:", geminiError);
       }
-    } catch (geminiError) {
-      origem_resposta = "fallback";
-      resposta = criarRespostaFallback({
-        mensagem,
-        empresa: {
-          ...(contexto?.empresa || {}),
-          evidencias_banco: evidenciasBanco
-        },
-        servicos,
-        faq,
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      });
-      console.error("Erro Gemini /teste:", geminiError);
     }
 
     const { error: respostaError } = await supabase.rpc(
@@ -962,8 +863,7 @@ app.get("/teste", async (req, res) => {
       origem_resposta,
       analiseMensagem,
       perfilLead,
-      estadoConversa,
-      evidenciasBanco
+      estadoConversa
     });
   } catch (err) {
     return res.status(500).json({
@@ -993,6 +893,8 @@ app.post("/chat", async (req, res) => {
     if (erroConfig) {
       console.log("ERRO AO BUSCAR CONFIG:", erroConfig);
     }
+
+    console.log("CONFIG EMPRESA:", configEmpresa);
 
     if (!empresa_id || !telefone || !mensagem) {
       return res.status(400).json({
@@ -1040,7 +942,7 @@ app.post("/chat", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
-    const servicosContexto = contexto?.servicos || contexto?.servicos_empresa || [];
+    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
 
     let focoCombo = false;
@@ -1056,74 +958,92 @@ app.post("/chat", async (req, res) => {
 
     if (focoCombo) {
       const combos = produtosFiltrados.filter((p) => p.tipo_item === "combo");
+
       if (combos.length > 0) {
         produtosFiltrados = combos;
       }
     }
 
-    const produtosComoServicos = produtosFiltrados.map((p) => ({
-      nome_servico: p.nome,
-      preco: p.preco,
-      descricao: p.descricao || ""
-    }));
+    if (produtosFiltrados.length > 0) {
+      const produtosComoServicos = produtosFiltrados.map((p) => ({
+        nome_servico: p.nome,
+        preco: p.preco,
+        descricao: p.descricao || ""
+      }));
 
-    const servicos = deduplicarServicos([
-      ...servicosContexto,
-      ...produtosComoServicos
-    ]);
+      servicos.push(...produtosComoServicos);
+    }
 
-    const evidenciasBanco = construirEvidenciasBanco(
+    let contextoVenda = "padrao";
+
+    if (configEmpresa?.modelo_venda === "combo") {
+      contextoVenda = "combo";
+    }
+
+    if (configEmpresa?.modelo_venda === "servico") {
+      contextoVenda = "servico";
+    }
+
+    const servicoDetectado = encontrarServicoPorMensagem(
       servicos,
       mensagem,
-      analiseMensagem
+      contextoVenda
     );
-
-    console.log("Mensagem:", mensagem);
-    console.log("Intenção:", analiseMensagem?.intencaoDetectada);
-    console.log("Serviços carregados:", servicos?.map((s) => s.nome_servico));
-    console.log(
-      "Serviços detectados:",
-      evidenciasBanco?.itens_detectados?.map((s) => s.nome_servico)
-    );
-    console.log("Evidências banco:", evidenciasBanco);
 
     let resposta = "";
     let origem_resposta = "gemini";
 
-    try {
-      const resultadoIA = await gerarRespostaComGemini(
-        {
-          ...contexto,
-          evidencias_banco: evidenciasBanco
-        },
-        mensagem,
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      );
+    if (servicoDetectado && analiseMensagem.intencaoDetectada === "orcamento") {
+      const preco = formatarPreco(servicoDetectado.preco);
+      const descricao = (servicoDetectado.descricao || "").trim();
 
-      resposta = resultadoIA.resposta;
+      resposta = `${servicoDetectado.nome_servico} custa ${preco}.${descricao ? ` ${descricao}` : ""} Se quiser, também posso te explicar melhor ou te ajudar com o próximo passo.`;
+      origem_resposta = "banco";
+    }
 
-      if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
-        throw new Error("Resposta vazia do Gemini");
+    if (
+      servicoDetectado &&
+      analiseMensagem.intencaoDetectada === "explicacao" &&
+      !resposta
+    ) {
+      const descricao = (servicoDetectado.descricao || "").trim();
+      const preco = formatarPreco(servicoDetectado.preco);
+
+      resposta = `Sim, temos ${servicoDetectado.nome_servico}.${descricao ? ` ${descricao}` : ""}${preco ? ` Se quiser, também posso te passar o valor: ${preco}.` : ""}`;
+      origem_resposta = "banco";
+    }
+
+    if (!resposta) {
+      try {
+        const resultadoIA = await gerarRespostaComGemini(
+          contexto,
+          mensagem,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        );
+
+        resposta = resultadoIA.resposta;
+
+        // Validação desativada temporariamente
+        // if (!validarRespostaMac(resposta)) {
+        //   throw new Error("Resposta do Gemini inválida ou genérica");
+        // }
+      } catch (geminiError) {
+        origem_resposta = "fallback";
+
+        resposta = criarRespostaFallback({
+          mensagem,
+          empresa: contexto?.empresa || {},
+          servicos,
+          faq,
+          analiseMensagem,
+          perfilLead,
+          estadoConversa
+        });
+
+        console.error("Erro Gemini /chat:", geminiError);
       }
-    } catch (geminiError) {
-      origem_resposta = "fallback";
-
-      resposta = criarRespostaFallback({
-        mensagem,
-        empresa: {
-          ...(contexto?.empresa || {}),
-          evidencias_banco: evidenciasBanco
-        },
-        servicos,
-        faq,
-        analiseMensagem,
-        perfilLead,
-        estadoConversa
-      });
-
-      console.error("Erro Gemini /chat:", geminiError);
     }
 
     const { error: respostaError } = await supabase.rpc(
@@ -1149,8 +1069,7 @@ app.post("/chat", async (req, res) => {
       origem_resposta,
       analiseMensagem,
       perfilLead,
-      estadoConversa,
-      evidenciasBanco
+      estadoConversa
     });
   } catch (err) {
     return res.status(500).json({

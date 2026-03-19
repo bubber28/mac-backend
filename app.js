@@ -146,7 +146,9 @@ function detectarItensPorMensagem(servicos = [], mensagem = "") {
         scoreNome += 3;
       }
 
-      const scoreTotal = Number((scoreNome * 0.7 + scoreDescricao * 0.3).toFixed(2));
+      const scoreTotal = Number(
+        (scoreNome * 0.7 + scoreDescricao * 0.3).toFixed(2)
+      );
 
       return {
         servico,
@@ -216,7 +218,8 @@ function construirEvidenciasBanco({
   const itensRankeados = detectarItensPorMensagem(servicos, mensagem);
   const principal = itensRankeados[0] || null;
   const pediuCardapio = identificarPedidoCardapio(mensagem);
-  const intencaoDetectada = analiseMensagem?.intencaoDetectada || "duvida_geral";
+  const intencaoDetectada =
+    analiseMensagem?.intencaoDetectada || "duvida_geral";
 
   const vitrineInicial = pediuCardapio
     ? montarVitrineInicial(servicos, mensagem)
@@ -286,7 +289,9 @@ function encontrarServicoPorMensagem(
     if (encontrouPorIntencaoCombo) {
       return (
         servicos.find((servico) => {
-          const nome = normalizarTexto(servico?.nome_servico || servico?.nome || "");
+          const nome = normalizarTexto(
+            servico?.nome_servico || servico?.nome || ""
+          );
           const descricao = normalizarTexto(servico?.descricao || "");
 
           return (
@@ -389,27 +394,6 @@ function criarRespostaFallback({
   estadoConversa = null,
   evidenciasBanco = null
 }) {
-  const msg = (mensagem || "").toLowerCase().trim();
-
-  const nomeEmpresa = empresa?.nome || empresa?.nome_empresa || "nossa empresa";
-
-  const perfil =
-    perfilLead?.perfil_estimado || analiseMensagem?.perfilHipotese || "N";
-
-  const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
-  const etapa = estadoConversa?.etapa_conversa || "aberta";
-  const evidencias = evidenciasBanco || {};
-
-  const saudacoes = [
-    "oi",
-    "olá",
-    "ola",
-    "bom dia",
-    "boa tarde",
-    "boa noite",
-    "oii"
-  ];
-
   return montarRespostaFallbackFactual({
     empresa,
     evidenciasBanco,
@@ -422,109 +406,108 @@ function criarRespostaFallback({
   });
 }
 
-  function montarRespostaFallbackFactual({ empresa = {}, evidenciasBanco = null }) {
-    const nomeEmpresa = empresa?.nome || empresa?.nome_empresa || "empresa";
-    const evidencias = evidenciasBanco || {};
+function montarRespostaFallbackFactual({ empresa = {}, evidenciasBanco = null }) {
+  const nomeEmpresa = empresa?.nome || empresa?.nome_empresa || "empresa";
+  const evidencias = evidenciasBanco || {};
 
-    if (evidencias?.pediu_cardapio && Array.isArray(evidencias?.vitrine_inicial)) {
-      const vitrine = evidencias.vitrine_inicial.slice(0, 6);
+  if (
+    evidencias?.pediu_cardapio &&
+    Array.isArray(evidencias?.vitrine_inicial)
+  ) {
+    const vitrine = evidencias.vitrine_inicial.slice(0, 6);
 
-      if (vitrine.length > 0) {
-        const itensTexto = vitrine
-          .map((item) => {
-            const nome = item?.nome_servico || item?.nome || "Item";
-            const preco = formatarPreco(item?.preco) || item?.preco || "preço a confirmar";
-            return `- ${nome}: ${preco}`;
-          })
-          .join("\n");
-
-        return `Vitrine inicial da ${nomeEmpresa}:\n${itensTexto}`;
-      }
-    }
-
-    const principal = evidencias?.servico_detectado_principal;
-    if (principal?.nome_servico) {
-      const nomeServico = principal.nome_servico;
-      const precoFormatado =
-        evidencias?.preco_item_principal_formatado || formatarPreco(principal.preco);
-      const descricao = (principal.descricao || "").trim();
-
-      if (precoFormatado && descricao) {
-        return `Item detectado: ${nomeServico}. Preço: ${precoFormatado}. Descrição: ${descricao}`;
-      }
-
-      if (precoFormatado) {
-        return `Item detectado: ${nomeServico}. Preço: ${precoFormatado}.`;
-      }
-
-      if (descricao) {
-        return `Item detectado: ${nomeServico}. Descrição: ${descricao}`;
-      }
-
-      return `Item detectado: ${nomeServico}.`;
-    }
-
-    const itens = Array.isArray(evidencias?.itens_detectados)
-      ? evidencias.itens_detectados.slice(0, 5)
-      : [];
-
-    if (itens.length > 0) {
-      const itensTexto = itens
+    if (vitrine.length > 0) {
+      const itensTexto = vitrine
         .map((item) => {
-          const nome = item?.nome_servico || "Item";
-          const preco = formatarPreco(item?.preco) || "preço a confirmar";
+          const nome = item?.nome_servico || item?.nome || "Item";
+          const preco =
+            formatarPreco(item?.preco) || item?.preco || "preço a confirmar";
           return `- ${nome}: ${preco}`;
         })
         .join("\n");
 
-      return `Itens detectados:\n${itensTexto}`;
+      return `Vitrine inicial da ${nomeEmpresa}:\n${itensTexto}`;
+    }
+  }
+
+  const principal = evidencias?.servico_detectado_principal;
+  if (principal?.nome_servico) {
+    const nomeServico = principal.nome_servico;
+    const precoFormatado =
+      evidencias?.preco_item_principal_formatado ||
+      formatarPreco(principal.preco);
+    const descricao = (principal.descricao || "").trim();
+
+    if (precoFormatado && descricao) {
+      return `Item detectado: ${nomeServico}. Preço: ${precoFormatado}. Descrição: ${descricao}`;
     }
 
-    return "Não foi possível identificar item específico ou vitrine inicial com os dados atuais.";
+    if (precoFormatado) {
+      return `Item detectado: ${nomeServico}. Preço: ${precoFormatado}.`;
+    }
+
+    if (descricao) {
+      return `Item detectado: ${nomeServico}. Descrição: ${descricao}`;
+    }
+
+    return `Item detectado: ${nomeServico}.`;
   }
 
-  function logObservabilidadeTemporaria({
-    mensagem_recebida,
-    intencao_detectada,
-    itens_detectados,
-    servico_detectado_principal,
-    pediu_cardapio,
-    origem_resposta
-  }) {
-    const payload = {
-      mensagem_recebida: mensagem_recebida || "",
-      intencao_detectada: intencao_detectada || "duvida_geral",
-      itens_detectados: Array.isArray(itens_detectados) ? itens_detectados : [],
-      servico_detectado_principal: servico_detectado_principal || null,
-      pediu_cardapio: Boolean(pediu_cardapio),
-      origem_resposta: origem_resposta || "indefinida"
-    };
+  const itens = Array.isArray(evidencias?.itens_detectados)
+    ? evidencias.itens_detectados.slice(0, 5)
+    : [];
 
-    console.log("[OBS_TEMP]", JSON.stringify(payload));
+  if (itens.length > 0) {
+    const itensTexto = itens
+      .map((item) => {
+        const nome = item?.nome_servico || "Item";
+        const preco = formatarPreco(item?.preco) || "preço a confirmar";
+        return `- ${nome}: ${preco}`;
+      })
+      .join("\n");
+
+    return `Itens detectados:\n${itensTexto}`;
   }
 
-  async function salvarAnaliseConversa(leadId, analiseMensagem) {
-    if (!leadId || !analiseMensagem) return;
+  return "Não foi possível identificar item específico ou vitrine inicial com os dados atuais.";
+}
 
-    const payload = {
-      lead_id: leadId,
-      intencao_detectada: analiseMensagem.intencaoDetectada || "duvida_geral",
-      perfil_hipotese: analiseMensagem.perfilHipotese || "N",
-      score_d: analiseMensagem.scoreD || 0,
-      score_i: analiseMensagem.scoreI || 0,
-      score_s: analiseMensagem.scoreS || 0,
-      score_c: analiseMensagem.scoreC || 0,
-      objetividade: analiseMensagem.objetividade || "média",
-      formalidade: analiseMensagem.formalidade || "média",
-      energia: analiseMensagem.energia || "média",
-      urgencia: analiseMensagem.urgencia || "baixa",
-      texto_original: analiseMensagem.textoOriginal || "",
-      tamanho_mensagem: analiseMensagem.tamanhoMensagem || 0,
-      tem_girias: Boolean(analiseMensagem.temGirias),
-      caixa_alta: Boolean(analiseMensagem.caixaAlta)
-    };
+function logObservabilidadeTemporaria({
+  mensagem_recebida,
+  intencao_detectada,
+  itens_detectados,
+  servico_detectado_principal,
+  pediu_cardapio,
+  origem_resposta
+}) {
+  const payload = {
+    mensagem_recebida: mensagem_recebida || "",
+    intencao_detectada: intencao_detectada || "duvida_geral",
+    itens_detectados: Array.isArray(itens_detectados) ? itens_detectados : [],
+    servico_detectado_principal: servico_detectado_principal || null,
+    pediu_cardapio: Boolean(pediu_cardapio),
+    origem_resposta: origem_resposta || "indefinida"
+  };
 
-    const { error } = await supabase.from("analise_conversa_mac").insert(payload);
+  console.log("[OBS_TEMP]", JSON.stringify(payload));
+}
+
+async function salvarAnaliseConversa(leadId, analiseMensagem) {
+  if (!leadId || !analiseMensagem) return;
+
+  const payload = {
+    lead_id: leadId,
+    intencao_detectada: analiseMensagem.intencaoDetectada || "duvida_geral",
+    perfil_hipotese: analiseMensagem.perfilHipotese || "N",
+    score_d: analiseMensagem.scoreD || 0,
+    score_i: analiseMensagem.scoreI || 0,
+    score_s: analiseMensagem.scoreS || 0,
+    score_c: analiseMensagem.scoreC || 0
+  };
+
+  const { error } = await supabase
+    .from("analise_conversa_mac")
+    .insert(payload);
 
   if (error) {
     throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);
@@ -576,7 +559,8 @@ function calcularConfiancaPorScores(scoreD, scoreI, scoreS, scoreC) {
 
   const maior = Math.max(scoreD || 0, scoreI || 0, scoreS || 0, scoreC || 0);
   return Number((maior / total).toFixed(2));
-} 
+}
+
 async function atualizarPerfilLead(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem) return;
 
@@ -602,7 +586,6 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
     novoScoreS,
     novoScoreC
   );
-
   const confianca = calcularConfiancaPorScores(
     novoScoreD,
     novoScoreI,
@@ -630,7 +613,8 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
     await supabase.from("perfil_lead_mac").insert(payload);
   }
 }
-  function mapearEstadoConversa(analiseMensagem) {
+
+function mapearEstadoConversa(analiseMensagem) {
   const intencao = analiseMensagem?.intencaoDetectada || "duvida_geral";
 
   if (intencao === "orcamento") {
@@ -653,16 +637,6 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
     };
   }
 
-  if (intencao === "cardapio") {
-    return {
-      etapa_conversa: "interesse",
-      ultima_intencao: "cardapio",
-      ultimo_assunto: "vitrine_produtos",
-      precisa_followup: true,
-      ultimo_objetivo: "mostrar_opcoes"
-    };
-  }
-
   if (intencao === "disponibilidade") {
     return {
       etapa_conversa: "consideracao",
@@ -680,6 +654,16 @@ async function atualizarPerfilLead(leadId, analiseMensagem) {
       ultimo_assunto: "marcacao",
       precisa_followup: false,
       ultimo_objetivo: "levar_para_marcacao"
+    };
+  }
+
+  if (intencao === "cardapio") {
+    return {
+      etapa_conversa: "consideracao",
+      ultima_intencao: "cardapio",
+      ultimo_assunto: "cardapio",
+      precisa_followup: true,
+      ultimo_objetivo: "mostrar_opcoes"
     };
   }
 
@@ -724,7 +708,9 @@ async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
       .eq("id", estadoExistente.id);
 
     if (updateError) {
-      throw new Error(`Erro ao atualizar estado da conversa: ${updateError.message}`);
+      throw new Error(
+        `Erro ao atualizar estado da conversa: ${updateError.message}`
+      );
     }
   } else {
     const { error: insertError } = await supabase
@@ -732,7 +718,9 @@ async function atualizarEstadoConversaLead(leadId, analiseMensagem) {
       .insert(payload);
 
     if (insertError) {
-      throw new Error(`Erro ao criar estado da conversa: ${insertError.message}`);
+      throw new Error(
+        `Erro ao criar estado da conversa: ${insertError.message}`
+      );
     }
   }
 }
@@ -774,8 +762,7 @@ async function gerarRespostaComGemini(
   mensagem,
   analiseMensagem,
   perfilLead = null,
-  estadoConversa = null,
-  evidenciasBanco = null
+  estadoConversa = null
 ) {
   try {
     const prompt = buildMacPrompt({
@@ -783,8 +770,7 @@ async function gerarRespostaComGemini(
       mensagemCliente: mensagem,
       analiseMensagem,
       perfilLead,
-      estadoConversa,
-      evidenciasBanco
+      estadoConversa
     });
 
     const response = await ai.models.generateContent({
@@ -873,48 +859,51 @@ app.get("/teste", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
-    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
+    const servicosBase = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
+    const servicos = Array.isArray(servicosBase) ? servicosBase : [];
+
     const evidenciasBanco = construirEvidenciasBanco({
       mensagem,
       analiseMensagem,
-      servicos,
-      contextoVenda: "padrao"
+      servicos
     });
 
     let resposta = "";
     let origem_resposta = "gemini";
 
-    if (!resposta) {
-      try {
-        const resultadoIA = await gerarRespostaComGemini(
-          contexto,
-          mensagem,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa,
-          evidenciasBanco
-        );
+    try {
+      const resultadoIA = await gerarRespostaComGemini(
+        {
+          ...contexto,
+          evidencias_banco: evidenciasBanco
+        },
+        mensagem,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      );
 
-        resposta = resultadoIA.resposta;
+      resposta = resultadoIA.resposta;
 
-        if (!validarRespostaMac(resposta)) {
-          throw new Error("Resposta do Gemini inválida ou genérica");
-        }
-      } catch (geminiError) {
-        origem_resposta = "fallback";
-        resposta = criarRespostaFallback({
-          mensagem,
-          empresa: contexto?.empresa || {},
-          servicos,
-          faq,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa,
-          evidenciasBanco
-        });
-        console.error("Erro Gemini /teste:", geminiError);
+      if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
+        throw new Error("Resposta vazia do Gemini");
       }
+    } catch (geminiError) {
+      origem_resposta = "fallback";
+
+      resposta = criarRespostaFallback({
+        mensagem,
+        empresa: contexto?.empresa || {},
+        servicos,
+        faq,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa,
+        evidenciasBanco
+      });
+
+      console.error("Erro Gemini /teste:", geminiError);
     }
 
     logObservabilidadeTemporaria({
@@ -923,7 +912,7 @@ app.get("/teste", async (req, res) => {
       itens_detectados: evidenciasBanco?.itens_detectados,
       servico_detectado_principal: evidenciasBanco?.servico_detectado_principal,
       pediu_cardapio: evidenciasBanco?.pediu_cardapio,
-      origem_resposta
+      origem_resposta: origem_resposta
     });
 
     const { error: respostaError } = await supabase.rpc(
@@ -948,10 +937,10 @@ app.get("/teste", async (req, res) => {
       pergunta: mensagem,
       resposta,
       origem_resposta,
-      evidenciasBanco,
       analiseMensagem,
       perfilLead,
-      estadoConversa
+      estadoConversa,
+      evidenciasBanco
     });
   } catch (err) {
     return res.status(500).json({
@@ -972,6 +961,12 @@ app.post("/chat", async (req, res) => {
       tipo_mensagem = "texto"
     } = req.body;
 
+    if (!empresa_id || !telefone || !mensagem) {
+      return res.status(400).json({
+        error: "empresa_id, telefone e mensagem são obrigatórios"
+      });
+    }
+
     const { data: configEmpresa, error: erroConfig } = await supabase
       .from("empresa_config")
       .select("*")
@@ -980,14 +975,6 @@ app.post("/chat", async (req, res) => {
 
     if (erroConfig) {
       console.log("ERRO AO BUSCAR CONFIG:", erroConfig);
-    }
-
-    console.log("CONFIG EMPRESA:", configEmpresa);
-
-    if (!empresa_id || !telefone || !mensagem) {
-      return res.status(400).json({
-        error: "empresa_id, telefone e mensagem são obrigatórios"
-      });
     }
 
     const { data: produtos, error: produtosError } = await supabase
@@ -1030,7 +1017,7 @@ app.post("/chat", async (req, res) => {
     const perfilLead = await buscarPerfilLead(leadId);
     const estadoConversa = await buscarEstadoConversaLead(leadId);
 
-    const servicos = contexto?.servicos || contexto?.servicos_empresa || [];
+    const servicosContexto = contexto?.servicos || contexto?.servicos_empresa || [];
     const faq = contexto?.faq || contexto?.faq_empresa || [];
 
     let focoCombo = false;
@@ -1042,36 +1029,30 @@ app.post("/chat", async (req, res) => {
       focoCombo = true;
     }
 
-    let produtosFiltrados = produtos || [];
+    let produtosFiltrados = Array.isArray(produtos) ? produtos : [];
 
     if (focoCombo) {
       const combos = produtosFiltrados.filter((p) => p.tipo_item === "combo");
-
       if (combos.length > 0) {
         produtosFiltrados = combos;
       }
     }
 
-    if (produtosFiltrados.length > 0) {
-      const produtosComoServicos = produtosFiltrados.map((p) => ({
-        nome_servico: p.nome,
-        preco: p.preco,
-        descricao: p.descricao || "",
-        tipo_item: p.tipo_item || null
-      }));
+    const produtosComoServicos = produtosFiltrados.map((p) => ({
+      nome_servico: p.nome,
+      preco: p.preco,
+      descricao: p.descricao || "",
+      tipo_item: p.tipo_item || null
+    }));
 
-      servicos.push(...produtosComoServicos);
-    }
+    const servicos = [...servicosContexto, ...produtosComoServicos];
 
-    let contextoVenda = "padrao";
-
-    if (configEmpresa?.modelo_venda === "combo") {
-      contextoVenda = "combo";
-    }
-
-    if (configEmpresa?.modelo_venda === "servico") {
-      contextoVenda = "servico";
-    }
+    const contextoVenda =
+      configEmpresa?.modelo_venda === "combo"
+        ? "combo"
+        : configEmpresa?.modelo_venda === "servico"
+          ? "servico"
+          : "padrao";
 
     const evidenciasBanco = construirEvidenciasBanco({
       mensagem,
@@ -1083,38 +1064,43 @@ app.post("/chat", async (req, res) => {
     let resposta = "";
     let origem_resposta = "gemini";
 
-    if (!resposta) {
-      try {
-        const resultadoIA = await gerarRespostaComGemini(
-          contexto,
-          mensagem,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa,
-          evidenciasBanco
-        );
+    try {
+      const resultadoIA = await gerarRespostaComGemini(
+        {
+          ...contexto,
+          evidencias_banco: evidenciasBanco
+        },
+        mensagem,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa
+      );
 
-        resposta = resultadoIA.resposta;
+      resposta = resultadoIA.resposta;
 
-        if (!validarRespostaMac(resposta)) {
-          throw new Error("Resposta do Gemini inválida ou genérica");
-        }
-      } catch (geminiError) {
-        origem_resposta = "fallback";
-
-        resposta = criarRespostaFallback({
-          mensagem,
-          empresa: contexto?.empresa || {},
-          servicos,
-          faq,
-          analiseMensagem,
-          perfilLead,
-          estadoConversa,
-          evidenciasBanco
-        });
-
-        console.error("Erro Gemini /chat:", geminiError);
+      if (!resposta || typeof resposta !== "string" || !resposta.trim()) {
+        throw new Error("Resposta vazia do Gemini");
       }
+
+      // Se quiser reativar depois, reative quando o prompt estiver estável.
+      // if (!validarRespostaMac(resposta)) {
+      //   throw new Error("Resposta do Gemini inválida ou genérica");
+      // }
+    } catch (geminiError) {
+      origem_resposta = "fallback";
+
+      resposta = criarRespostaFallback({
+        mensagem,
+        empresa: contexto?.empresa || {},
+        servicos,
+        faq,
+        analiseMensagem,
+        perfilLead,
+        estadoConversa,
+        evidenciasBanco
+      });
+
+      console.error("Erro Gemini /chat:", geminiError);
     }
 
     logObservabilidadeTemporaria({
@@ -1123,7 +1109,7 @@ app.post("/chat", async (req, res) => {
       itens_detectados: evidenciasBanco?.itens_detectados,
       servico_detectado_principal: evidenciasBanco?.servico_detectado_principal,
       pediu_cardapio: evidenciasBanco?.pediu_cardapio,
-      origem_resposta
+      origem_resposta: origem_resposta
     });
 
     const { error: respostaError } = await supabase.rpc(
@@ -1147,10 +1133,10 @@ app.post("/chat", async (req, res) => {
       lead_id: leadId,
       resposta,
       origem_resposta,
-      evidenciasBanco,
       analiseMensagem,
       perfilLead,
-      estadoConversa
+      estadoConversa,
+      evidenciasBanco
     });
   } catch (err) {
     return res.status(500).json({

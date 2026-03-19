@@ -99,6 +99,14 @@ function analyzeMessage(mensagem = "") {
     textoMinusculo.includes("quero entender") ||
     textoMinusculo.includes("me fala mais");
 
+  const temPalavraCardapio =
+    textoMinusculo.includes("cardápio") ||
+    textoMinusculo.includes("cardapio") ||
+    textoMinusculo.includes("menu") ||
+    textoMinusculo.includes("me mostra") ||
+    textoMinusculo.includes("o que tem") ||
+    textoMinusculo.includes("quero ver");
+
   const temConfirmacaoServico =
     textoMinusculo.includes("vocês fazem") ||
     textoMinusculo.includes("voces fazem") ||
@@ -127,6 +135,8 @@ function analyzeMessage(mensagem = "") {
 
   if (ehSaudacao) {
     intencaoDetectada = "saudacao";
+  } else if (temPalavraCardapio) {
+    intencaoDetectada = "cardapio";
   } else if (temPalavraPreco) {
     intencaoDetectada = "orcamento";
   } else if (temPalavraAgendamento) {

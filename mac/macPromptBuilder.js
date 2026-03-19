@@ -3,7 +3,8 @@ function buildMacPrompt({
   mensagemCliente,
   analiseMensagem,
   perfilLead,
-  estadoConversa
+  estadoConversa,
+  evidenciasBanco
 }) {
   const empresa = contextoEmpresa?.empresa || {};
   const configMac = contextoEmpresa?.config_mac || {};
@@ -11,6 +12,7 @@ function buildMacPrompt({
   const faq = contextoEmpresa?.faq || [];
   const perfil = perfilLead || {};
   const estado = estadoConversa || {};
+  const evidencias = evidenciasBanco || {};
 
   return `
 Você é o M.A.C., atendente inteligente da empresa.
@@ -66,12 +68,34 @@ ${JSON.stringify(
   2
 )}
 
+EVIDÊNCIAS DO BANCO (FATOS E SINAIS):
+${JSON.stringify(
+  {
+    pediu_cardapio: evidencias.pediu_cardapio ?? false,
+    intencao_detectada: evidencias.intencao_detectada || "duvida_geral",
+    origem_detector_itens: evidencias.origem_detector_itens || null,
+    detector_cardapio_ativo: evidencias.detector_cardapio_ativo ?? false,
+    servico_detectado_principal: evidencias.servico_detectado_principal || null,
+    preco_item_principal_formatado:
+      evidencias.preco_item_principal_formatado || null,
+    itens_detectados: Array.isArray(evidencias.itens_detectados)
+      ? evidencias.itens_detectados
+      : [],
+    vitrine_inicial: Array.isArray(evidencias.vitrine_inicial)
+      ? evidencias.vitrine_inicial
+      : []
+  },
+  null,
+  2
+)}
+
 MENSAGEM DO CLIENTE:
 ${mensagemCliente}
 
 REGRAS GERAIS:
 - Responda em português do Brasil.
 - Seja natural, humano e profissional.
+- Você é quem conduz a conversa; o backend apenas fornece fatos, contexto e memória.
 - Use apenas informações fornecidas pela empresa, pelos serviços e pelo FAQ.
 - Não invente preços, horários, políticas, resultados ou serviços.
 - Se faltar informação, diga com clareza e de forma natural que precisa confirmar.
@@ -81,6 +105,7 @@ REGRAS GERAIS:
 - Não use linguagem institucional desnecessária.
 - Não fale como robô.
 - Não pareça texto ensaiado.
+- Use as evidências do banco como fonte factual de apoio, não como roteiro engessado.
 
 REGRAS DE NATURALIDADE E VARIAÇÃO:
 - Não use sempre as mesmas expressões para iniciar respostas.

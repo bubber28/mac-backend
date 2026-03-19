@@ -510,7 +510,6 @@ function criarRespostaFallback({
       lead_id: leadId,
       intencao_detectada: analiseMensagem.intencaoDetectada || "duvida_geral",
       perfil_hipotese: analiseMensagem.perfilHipotese || "N",
-      estrategia_resposta: analiseMensagem.estrategia || "resposta_equilibrada",
       score_d: analiseMensagem.scoreD || 0,
       score_i: analiseMensagem.scoreI || 0,
       score_s: analiseMensagem.scoreS || 0,

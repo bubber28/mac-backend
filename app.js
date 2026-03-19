@@ -407,18 +407,20 @@ function criarRespostaFallback({
     "bom dia",
     "boa tarde",
     "boa noite",
-    "oii",
-    return montarRespostaFallbackFactual({
-      empresa,
-      evidenciasBanco,
-      mensagem,
-      servicos,
-      faq,
-      analiseMensagem,
-      perfilLead,
-      estadoConversa
-    });
-  }
+    "oii"
+  ];
+
+  return montarRespostaFallbackFactual({
+    empresa,
+    evidenciasBanco,
+    mensagem,
+    servicos,
+    faq,
+    analiseMensagem,
+    perfilLead,
+    estadoConversa
+  });
+}
 
   function montarRespostaFallbackFactual({ empresa = {}, evidenciasBanco = null }) {
     const nomeEmpresa = empresa?.nome || empresa?.nome_empresa || "empresa";
@@ -501,9 +503,29 @@ function criarRespostaFallback({
     console.log("[OBS_TEMP]", JSON.stringify(payload));
   }
 
-  const { error } = await supabase
-    .from("analise_conversa_mac")
-    .insert(payload);
+  async function salvarAnaliseConversa(leadId, analiseMensagem) {
+    if (!leadId || !analiseMensagem) return;
+
+    const payload = {
+      lead_id: leadId,
+      intencao_detectada: analiseMensagem.intencaoDetectada || "duvida_geral",
+      perfil_hipotese: analiseMensagem.perfilHipotese || "N",
+      estrategia_resposta: analiseMensagem.estrategia || "resposta_equilibrada",
+      score_d: analiseMensagem.scoreD || 0,
+      score_i: analiseMensagem.scoreI || 0,
+      score_s: analiseMensagem.scoreS || 0,
+      score_c: analiseMensagem.scoreC || 0,
+      objetividade: analiseMensagem.objetividade || "média",
+      formalidade: analiseMensagem.formalidade || "média",
+      energia: analiseMensagem.energia || "média",
+      urgencia: analiseMensagem.urgencia || "baixa",
+      texto_original: analiseMensagem.textoOriginal || "",
+      tamanho_mensagem: analiseMensagem.tamanhoMensagem || 0,
+      tem_girias: Boolean(analiseMensagem.temGirias),
+      caixa_alta: Boolean(analiseMensagem.caixaAlta)
+    };
+
+    const { error } = await supabase.from("analise_conversa_mac").insert(payload);
 
   if (error) {
     throw new Error(`Erro ao salvar análise da conversa: ${error.message}`);

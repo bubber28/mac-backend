@@ -1,16 +1,17 @@
 {
   "name": "mac-backend",
   "version": "1.0.0",
-  "description": "Backend inicial do M.A.C.",
-  "main": "app.js",
+  "description": "Backend M.A.C. para Vercel",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node app.js"
+    "dev": "node api/index.js",
+    "start": "node api/index.js"
   },
- "dependencies": {
-  "@google/generative-ai": "^0.21.0",
-  "@google/genai": "^0.3.0",
-  "@supabase/supabase-js": "^2.39.7",
-  "express": "^4.19.2",
-  "cors": "^2.8.5"
-}
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^0.3.0",
+    "@supabase/supabase-js": "^2.39.7",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
 }

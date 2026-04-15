@@ -4,8 +4,8 @@ const cors = require("cors");
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { buildMacPrompt } = require("./mac/macPromptBuilder");
-const { analyzeMessage } = require("./mac/macAnalyzer");
+const { buildMacPrompt } = require("../mac/macPromptBuilder");
+const { analyzeMessage } = require("../mac/macAnalyzer");
 
 const app = express();
 

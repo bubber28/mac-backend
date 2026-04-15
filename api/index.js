@@ -251,7 +251,6 @@ async function salvarAnaliseConversa(leadId, analiseMensagem) {
 async function atualizarPerfilLead(leadId, analiseMensagem) {
   if (!leadId || !analiseMensagem || !supabase) return;
 
-  // Mantido simples para não quebrar o fluxo atual
   console.log(`Perfil atualizado para lead ${leadId}`);
 }
 
@@ -294,15 +293,56 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    // Modo estável/diagnóstico preservado
+    let analiseMensagem = null;
+    try {
+      analiseMensagem = analyzeMessage(mensagem);
+    } catch (errorAnalise) {
+      console.error("Erro ao analisar mensagem:", errorAnalise?.message || errorAnalise);
+    }
+
+    let promptFinal = "";
+    try {
+      promptFinal = buildMacPrompt({
+        mensagem,
+        nome,
+        telefone,
+        canal,
+        empresa_id,
+        analiseMensagem,
+        contextoEmpresa: "Atendimento via WhatsApp com foco em clareza, humanização e conversão."
+      });
+    } catch (errorPrompt) {
+      console.error("Erro ao montar prompt:", errorPrompt?.message || errorPrompt);
+    }
+
+    let respostaFinal =
+      "Vou organizar isso para você agora. Me diga só um detalhe para eu te responder da forma mais certa.";
+
+    if (genAI && promptFinal) {
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await model.generateContent(promptFinal);
+        const text = result?.response?.text?.();
+
+        if (text && text.trim()) {
+          respostaFinal = text.trim();
+        }
+      } catch (errorGemini) {
+        console.error("Erro Gemini:", errorGemini?.message || errorGemini);
+      }
+    }
+
     return res.json({
       ok: true,
       lead_id: "temp",
-      resposta:
-        "Backend está online. A análise completa será restaurada em breve.",
-      origem_resposta: "estável",
+      resposta: respostaFinal,
+      origem_resposta: genAI && promptFinal ? "mac_ativo" : "fallback_estavel",
       canal,
       nome: nome || null,
+      analise: {
+        intencao_detectada: analiseMensagem?.intencaoDetectada || null,
+        perfil_hipotese: analiseMensagem?.perfilHipotese || null,
+      },
     });
   } catch (err) {
     console.error("Erro /chat:", err);

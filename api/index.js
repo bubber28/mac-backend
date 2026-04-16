@@ -1,9 +1,8 @@
-// api/index.js - Versão Completa Restaurada + Base Estável Integrada
-
 const cors = require("cors");
 const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+
 const { buildMacPrompt } = require("../mac/macPromptBuilder");
 const { analyzeMessage } = require("../mac/macAnalyzer");
 
@@ -12,14 +11,11 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
-// ==================== VARIÁVEIS DE AMBIENTE ====================
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
-// ==================== CLIENTES EXTERNOS COM PROTEÇÃO ====================
-// Evita crash na inicialização se faltar variável de ambiente
 const supabase =
   supabaseUrl && supabaseKey
     ? createClient(supabaseUrl, supabaseKey)
@@ -29,11 +25,11 @@ const genAI = geminiApiKey
   ? new GoogleGenerativeAI(geminiApiKey)
   : null;
 
-console.log("✅ M.A.C Backend iniciado - Versão estável");
-console.log("Supabase:", !!supabaseUrl && !!supabaseKey);
-console.log("Gemini:", !!geminiApiKey);
+console.log("✅ M.A.C Backend iniciado");
+console.log("Supabase:", !!supabase);
+console.log("Gemini:", !!genAI);
 
-// ==================== FUNÇÕES AUXILIARES (PRESERVADAS) ====================
+// ==================== FUNÇÕES AUXILIARES ====================
 function formatarPreco(valor) {
   if (valor === null || valor === undefined || valor === "") return null;
   const numero = Number(valor);
@@ -227,45 +223,6 @@ function construirEvidenciasBanco({
   };
 }
 
-// ==================== FUNÇÕES DE PERFIL ====================
-async function salvarAnaliseConversa(leadId, analiseMensagem) {
-  if (!leadId || !analiseMensagem || !supabase) return;
-
-  const payload = {
-    lead_id: leadId,
-    intencao_detectada: analiseMensagem.intencaoDetectada || "duvida_geral",
-    perfil_hipotese: analiseMensagem.perfilHipotese || "N",
-    score_d: analiseMensagem.scoreD || 0,
-    score_i: analiseMensagem.scoreI || 0,
-    score_s: analiseMensagem.scoreS || 0,
-    score_c: analiseMensagem.scoreC || 0,
-  };
-
-  const { error } = await supabase.from("analise_conversa_mac").insert(payload);
-
-  if (error) {
-    console.error("Erro salvar análise:", error.message);
-  }
-}
-
-async function atualizarPerfilLead(leadId, analiseMensagem) {
-  if (!leadId || !analiseMensagem || !supabase) return;
-
-  console.log(`Perfil atualizado para lead ${leadId}`);
-}
-
-async function buscarPerfilLead(leadId) {
-  if (!leadId || !supabase) return null;
-
-  const { data } = await supabase
-    .from("perfil_lead_mac")
-    .select("*")
-    .eq("lead_id", leadId)
-    .maybeSingle();
-
-  return data;
-}
-
 // ==================== ROTAS ====================
 
 app.get("/", (req, res) => {
@@ -293,30 +250,44 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    let analiseMensagem = null;
-    try {
-      analiseMensagem = analyzeMessage(mensagem);
-    } catch (errorAnalise) {
-      console.error("Erro ao analisar mensagem:", errorAnalise?.message || errorAnalise);
-    }
+    const analiseMensagem = analyzeMessage(mensagem);
+
+    const contextoEmpresa = {
+      empresa: {
+        id: empresa_id,
+        canal_principal: canal
+      },
+      config_mac: {
+        modo_atendimento: "whatsapp",
+        objetivo: "conversao"
+      },
+      servicos: [],
+      faq: []
+    };
+
+    const evidenciasBanco = construirEvidenciasBanco({
+      mensagem,
+      analiseMensagem,
+      servicos: contextoEmpresa.servicos,
+      contextoVenda: "padrao"
+    });
 
     let promptFinal = "";
     try {
       promptFinal = buildMacPrompt({
-        mensagem,
-        nome,
-        telefone,
-        canal,
-        empresa_id,
+        contextoEmpresa,
+        mensagemCliente: mensagem,
         analiseMensagem,
-        contextoEmpresa: "Atendimento via WhatsApp com foco em clareza, humanização e conversão."
+        perfilLead: null,
+        estadoConversa: null,
+        evidenciasBanco
       });
     } catch (errorPrompt) {
       console.error("Erro ao montar prompt:", errorPrompt?.message || errorPrompt);
     }
 
     let respostaFinal =
-      "Vou organizar isso para você agora. Me diga só um detalhe para eu te responder da forma mais certa.";
+      "Vou te responder da forma mais certa. Me fala só mais um detalhe para eu te orientar melhor.";
 
     if (genAI && promptFinal) {
       try {

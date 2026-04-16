@@ -273,6 +273,8 @@ app.post("/chat", async (req, res) => {
     });
 
     let promptFinal = "";
+    let erroPrompt = null;
+
     try {
       promptFinal = buildMacPrompt({
         contextoEmpresa,
@@ -283,23 +285,28 @@ app.post("/chat", async (req, res) => {
         evidenciasBanco
       });
     } catch (errorPrompt) {
-      console.error("Erro ao montar prompt:", errorPrompt?.message || errorPrompt);
+      erroPrompt = errorPrompt?.message || String(errorPrompt);
+      console.error("Erro ao montar prompt:", erroPrompt);
     }
 
     let respostaFinal =
       "Vou te responder da forma mais certa. Me fala só mais um detalhe para eu te orientar melhor.";
 
+    let erroGemini = null;
+    let textoGemini = "";
+
     if (genAI && promptFinal) {
       try {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const result = await model.generateContent(promptFinal);
-        const text = result?.response?.text?.();
+        textoGemini = result?.response?.text?.() || "";
 
-        if (text && text.trim()) {
-          respostaFinal = text.trim();
+        if (textoGemini.trim()) {
+          respostaFinal = textoGemini.trim();
         }
-      } catch (errorGemini) {
-        console.error("Erro Gemini:", errorGemini?.message || errorGemini);
+      } catch (errorGeminiObj) {
+        erroGemini = errorGeminiObj?.message || String(errorGeminiObj);
+        console.error("Erro Gemini:", erroGemini);
       }
     }
 
@@ -307,13 +314,22 @@ app.post("/chat", async (req, res) => {
       ok: true,
       lead_id: "temp",
       resposta: respostaFinal,
-      origem_resposta: genAI && promptFinal ? "mac_ativo" : "fallback_estavel",
+      origem_resposta:
+        textoGemini.trim() ? "mac_ativo" : "fallback_estavel",
       canal,
       nome: nome || null,
       analise: {
         intencao_detectada: analiseMensagem?.intencaoDetectada || null,
         perfil_hipotese: analiseMensagem?.perfilHipotese || null,
       },
+      debug: {
+        tem_prompt: !!promptFinal,
+        tamanho_prompt: promptFinal ? promptFinal.length : 0,
+        gemini_habilitado: !!genAI,
+        erro_prompt: erroPrompt,
+        erro_gemini: erroGemini,
+        houve_texto_gemini: !!textoGemini.trim()
+      }
     });
   } catch (err) {
     console.error("Erro /chat:", err);

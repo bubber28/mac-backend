@@ -13,7 +13,10 @@ app.use(express.json());
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_KEY;
+
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
 const supabase =
@@ -30,6 +33,7 @@ console.log("Supabase:", !!supabase);
 console.log("Gemini:", !!genAI);
 
 // ==================== FUNÇÕES AUXILIARES ====================
+
 function formatarPreco(valor) {
   if (valor === null || valor === undefined || valor === "") return null;
   const numero = Number(valor);
@@ -223,6 +227,92 @@ function construirEvidenciasBanco({
   };
 }
 
+async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
+  const fallback = {
+    empresa: {
+      id: empresaId,
+      canal_principal: canal,
+    },
+    config_mac: {
+      modo_atendimento: "whatsapp",
+      objetivo: "conversao",
+      tom_padrao: "humano",
+    },
+    servicos: [],
+    faq: [],
+  };
+
+  if (!supabase || !empresaId) {
+    return fallback;
+  }
+
+  try {
+    let empresa = null;
+    let configMac = null;
+    let servicos = [];
+    let faq = [];
+
+    const empresaResp = await supabase
+      .from("empresas")
+      .select("*")
+      .eq("id", empresaId)
+      .maybeSingle();
+
+    if (empresaResp.error) {
+      console.error("Erro ao buscar empresa:", empresaResp.error.message);
+    } else {
+      empresa = empresaResp.data;
+    }
+
+    const configResp = await supabase
+      .from("config_mac")
+      .select("*")
+      .eq("empresa_id", empresaId)
+      .maybeSingle();
+
+    if (configResp.error) {
+      console.error("Erro ao buscar config_mac:", configResp.error.message);
+    } else {
+      configMac = configResp.data;
+    }
+
+    const servicosResp = await supabase
+      .from("servicos")
+      .select("*")
+      .eq("empresa_id", empresaId)
+      .eq("ativo", true)
+      .order("nome_servico", { ascending: true });
+
+    if (servicosResp.error) {
+      console.error("Erro ao buscar servicos:", servicosResp.error.message);
+    } else {
+      servicos = servicosResp.data || [];
+    }
+
+    const faqResp = await supabase
+      .from("faq")
+      .select("*")
+      .eq("empresa_id", empresaId)
+      .order("created_at", { ascending: true });
+
+    if (faqResp.error) {
+      console.error("Erro ao buscar faq:", faqResp.error.message);
+    } else {
+      faq = faqResp.data || [];
+    }
+
+    return {
+      empresa: empresa || fallback.empresa,
+      config_mac: configMac || fallback.config_mac,
+      servicos,
+      faq,
+    };
+  } catch (error) {
+    console.error("Erro ao carregar contexto da empresa:", error?.message || error);
+    return fallback;
+  }
+}
+
 // ==================== ROTAS ====================
 
 app.get("/", (req, res) => {
@@ -251,19 +341,7 @@ app.post("/chat", async (req, res) => {
     }
 
     const analiseMensagem = analyzeMessage(mensagem);
-
-    const contextoEmpresa = {
-      empresa: {
-        id: empresa_id,
-        canal_principal: canal
-      },
-      config_mac: {
-        modo_atendimento: "whatsapp",
-        objetivo: "conversao"
-      },
-      servicos: [],
-      faq: []
-    };
+    const contextoEmpresa = await carregarContextoEmpresa(empresa_id, canal);
 
     const evidenciasBanco = construirEvidenciasBanco({
       mensagem,
@@ -273,7 +351,6 @@ app.post("/chat", async (req, res) => {
     });
 
     let promptFinal = "";
-    let erroPrompt = null;
 
     try {
       promptFinal = buildMacPrompt({
@@ -285,28 +362,26 @@ app.post("/chat", async (req, res) => {
         evidenciasBanco
       });
     } catch (errorPrompt) {
-      erroPrompt = errorPrompt?.message || String(errorPrompt);
-      console.error("Erro ao montar prompt:", erroPrompt);
+      console.error("Erro ao montar prompt:", errorPrompt?.message || errorPrompt);
     }
 
     let respostaFinal =
       "Vou te responder da forma mais certa. Me fala só mais um detalhe para eu te orientar melhor.";
 
-    let erroGemini = null;
-    let textoGemini = "";
-
     if (genAI && promptFinal) {
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+        const model = genAI.getGenerativeModel({
+          model: "gemini-3-flash-preview"
+        });
+
         const result = await model.generateContent(promptFinal);
-        textoGemini = result?.response?.text?.() || "";
+        const textoGemini = result?.response?.text?.() || "";
 
         if (textoGemini.trim()) {
           respostaFinal = textoGemini.trim();
         }
-      } catch (errorGeminiObj) {
-        erroGemini = errorGeminiObj?.message || String(errorGeminiObj);
-        console.error("Erro Gemini:", erroGemini);
+      } catch (errorGemini) {
+        console.error("Erro Gemini:", errorGemini?.message || errorGemini);
       }
     }
 
@@ -314,21 +389,12 @@ app.post("/chat", async (req, res) => {
       ok: true,
       lead_id: "temp",
       resposta: respostaFinal,
-      origem_resposta:
-        textoGemini.trim() ? "mac_ativo" : "fallback_estavel",
+      origem_resposta: "mac_ativo",
       canal,
       nome: nome || null,
       analise: {
         intencao_detectada: analiseMensagem?.intencaoDetectada || null,
         perfil_hipotese: analiseMensagem?.perfilHipotese || null,
-      },
-      debug: {
-        tem_prompt: !!promptFinal,
-        tamanho_prompt: promptFinal ? promptFinal.length : 0,
-        gemini_habilitado: !!genAI,
-        erro_prompt: erroPrompt,
-        erro_gemini: erroGemini,
-        houve_texto_gemini: !!textoGemini.trim()
       }
     });
   } catch (err) {

@@ -142,6 +142,8 @@ function identificarPedidoCardapio(mensagem = "") {
     "quais opcoes",
     "mostra o que tem",
     "quero ver",
+    "lista",
+    "lista completa"
   ];
 
   return termosCardapio.some((termo) => texto.includes(termo));
@@ -175,7 +177,7 @@ function montarVitrineInicial(servicos = [], mensagem = "", limite = 6) {
   return base.slice(0, limite).map((item) => ({
     nome: item?.nome_servico || item?.nome || "Item",
     preco: formatarPreco(item?.preco),
-    descricao: (item?.descricao || "").trim() || null,
+    descricao: (item?.descricao || "").trim() || null
   }));
 }
 
@@ -209,7 +211,7 @@ function construirEvidenciasBanco({
           preco: principal.servico?.preco ?? null,
           score_nome: principal.score_nome,
           score_descricao: principal.score_descricao,
-          score_total: principal.score_total,
+          score_total: principal.score_total
         }
       : null,
     preco_item_principal_formatado: principal
@@ -220,10 +222,10 @@ function construirEvidenciasBanco({
       preco: item.servico?.preco ?? null,
       score_nome: item.score_nome,
       score_descricao: item.score_descricao,
-      score_total: item.score_total,
+      score_total: item.score_total
     })),
     vitrine_inicial: vitrineInicial,
-    contexto_venda: contextoVenda,
+    contexto_venda: contextoVenda
   };
 }
 
@@ -231,15 +233,15 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
   const fallback = {
     empresa: {
       id: empresaId,
-      canal_principal: canal,
+      canal_principal: canal
     },
     config_mac: {
       modo_atendimento: "whatsapp",
       objetivo: "conversao",
-      tom_padrao: "humano",
+      tom_padrao: "humano"
     },
     servicos: [],
-    faq: [],
+    faq: []
   };
 
   if (!supabase || !empresaId) {
@@ -258,11 +260,8 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("id", empresaId)
       .maybeSingle();
 
-    if (empresaResp.error) {
-      console.error("Erro ao buscar empresa:", empresaResp.error.message);
-    } else {
-      empresa = empresaResp.data;
-    }
+    if (!empresaResp.error) empresa = empresaResp.data;
+    else console.error("Erro ao buscar empresa:", empresaResp.error.message);
 
     const configResp = await supabase
       .from("config_mac")
@@ -270,11 +269,8 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("empresa_id", empresaId)
       .maybeSingle();
 
-    if (configResp.error) {
-      console.error("Erro ao buscar config_mac:", configResp.error.message);
-    } else {
-      configMac = configResp.data;
-    }
+    if (!configResp.error) configMac = configResp.data;
+    else console.error("Erro ao buscar config_mac:", configResp.error.message);
 
     const servicosResp = await supabase
       .from("servicos")
@@ -283,11 +279,8 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("ativo", true)
       .order("nome_servico", { ascending: true });
 
-    if (servicosResp.error) {
-      console.error("Erro ao buscar servicos:", servicosResp.error.message);
-    } else {
-      servicos = servicosResp.data || [];
-    }
+    if (!servicosResp.error) servicos = servicosResp.data || [];
+    else console.error("Erro ao buscar servicos:", servicosResp.error.message);
 
     const faqResp = await supabase
       .from("faq")
@@ -295,17 +288,14 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("empresa_id", empresaId)
       .order("created_at", { ascending: true });
 
-    if (faqResp.error) {
-      console.error("Erro ao buscar faq:", faqResp.error.message);
-    } else {
-      faq = faqResp.data || [];
-    }
+    if (!faqResp.error) faq = faqResp.data || [];
+    else console.error("Erro ao buscar faq:", faqResp.error.message);
 
     return {
       empresa: empresa || fallback.empresa,
       config_mac: configMac || fallback.config_mac,
       servicos,
-      faq,
+      faq
     };
   } catch (error) {
     console.error("Erro ao carregar contexto da empresa:", error?.message || error);
@@ -326,7 +316,7 @@ app.get("/health", (req, res) => {
     message: "Backend funcionando sem crash",
     supabase: !!supabase,
     gemini: !!genAI,
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -336,7 +326,7 @@ app.post("/chat", async (req, res) => {
 
     if (!empresa_id || !telefone || !mensagem) {
       return res.status(400).json({
-        error: "Dados obrigatórios faltando",
+        error: "Dados obrigatórios faltando"
       });
     }
 
@@ -371,7 +361,7 @@ app.post("/chat", async (req, res) => {
     if (genAI && promptFinal) {
       try {
         const model = genAI.getGenerativeModel({
-          model: "gemini-3-flash-preview"
+          model: "gemini-flash-latest"
         });
 
         const result = await model.generateContent(promptFinal);
@@ -379,6 +369,8 @@ app.post("/chat", async (req, res) => {
 
         if (textoGemini.trim()) {
           respostaFinal = textoGemini.trim();
+        } else {
+          console.error("Gemini retornou texto vazio.");
         }
       } catch (errorGemini) {
         console.error("Erro Gemini:", errorGemini?.message || errorGemini);
@@ -394,14 +386,14 @@ app.post("/chat", async (req, res) => {
       nome: nome || null,
       analise: {
         intencao_detectada: analiseMensagem?.intencaoDetectada || null,
-        perfil_hipotese: analiseMensagem?.perfilHipotese || null,
+        perfil_hipotese: analiseMensagem?.perfilHipotese || null
       }
     });
   } catch (err) {
     console.error("Erro /chat:", err);
     return res.status(500).json({
       error: "Erro interno",
-      detalhes: err?.message || "Falha desconhecida",
+      detalhes: err?.message || "Falha desconhecida"
     });
   }
 });

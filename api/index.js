@@ -15,7 +15,8 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SECRET_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_KEY;
+  process.env.SUPABASE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
@@ -143,7 +144,8 @@ function identificarPedidoCardapio(mensagem = "") {
     "mostra o que tem",
     "quero ver",
     "lista",
-    "lista completa"
+    "lista completa",
+    "opcoes"
   ];
 
   return termosCardapio.some((termo) => texto.includes(termo));
@@ -177,7 +179,7 @@ function montarVitrineInicial(servicos = [], mensagem = "", limite = 6) {
   return base.slice(0, limite).map((item) => ({
     nome: item?.nome_servico || item?.nome || "Item",
     preco: formatarPreco(item?.preco),
-    descricao: (item?.descricao || "").trim() || null
+    descricao: (item?.descricao || "").trim() || null,
   }));
 }
 
@@ -211,7 +213,7 @@ function construirEvidenciasBanco({
           preco: principal.servico?.preco ?? null,
           score_nome: principal.score_nome,
           score_descricao: principal.score_descricao,
-          score_total: principal.score_total
+          score_total: principal.score_total,
         }
       : null,
     preco_item_principal_formatado: principal
@@ -222,10 +224,10 @@ function construirEvidenciasBanco({
       preco: item.servico?.preco ?? null,
       score_nome: item.score_nome,
       score_descricao: item.score_descricao,
-      score_total: item.score_total
+      score_total: item.score_total,
     })),
     vitrine_inicial: vitrineInicial,
-    contexto_venda: contextoVenda
+    contexto_venda: contextoVenda,
   };
 }
 
@@ -233,18 +235,19 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
   const fallback = {
     empresa: {
       id: empresaId,
-      canal_principal: canal
+      canal_principal: canal,
     },
     config_mac: {
       modo_atendimento: "whatsapp",
       objetivo: "conversao",
-      tom_padrao: "humano"
+      tom_padrao: "humano",
     },
     servicos: [],
-    faq: []
+    faq: [],
   };
 
   if (!supabase || !empresaId) {
+    console.error("DIAG MAC: Supabase indisponível ou empresaId ausente.");
     return fallback;
   }
 
@@ -260,8 +263,11 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("id", empresaId)
       .maybeSingle();
 
-    if (!empresaResp.error) empresa = empresaResp.data;
-    else console.error("Erro ao buscar empresa:", empresaResp.error.message);
+    if (empresaResp.error) {
+      console.error("DIAG MAC: erro ao buscar empresa:", empresaResp.error.message);
+    } else {
+      empresa = empresaResp.data;
+    }
 
     const configResp = await supabase
       .from("config_mac")
@@ -269,8 +275,11 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("empresa_id", empresaId)
       .maybeSingle();
 
-    if (!configResp.error) configMac = configResp.data;
-    else console.error("Erro ao buscar config_mac:", configResp.error.message);
+    if (configResp.error) {
+      console.error("DIAG MAC: erro ao buscar config_mac:", configResp.error.message);
+    } else {
+      configMac = configResp.data;
+    }
 
     const servicosResp = await supabase
       .from("servicos")
@@ -279,8 +288,11 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("ativo", true)
       .order("nome_servico", { ascending: true });
 
-    if (!servicosResp.error) servicos = servicosResp.data || [];
-    else console.error("Erro ao buscar servicos:", servicosResp.error.message);
+    if (servicosResp.error) {
+      console.error("DIAG MAC: erro ao buscar servicos:", servicosResp.error.message);
+    } else {
+      servicos = servicosResp.data || [];
+    }
 
     const faqResp = await supabase
       .from("faq")
@@ -288,17 +300,28 @@ async function carregarContextoEmpresa(empresaId, canal = "whatsapp") {
       .eq("empresa_id", empresaId)
       .order("created_at", { ascending: true });
 
-    if (!faqResp.error) faq = faqResp.data || [];
-    else console.error("Erro ao buscar faq:", faqResp.error.message);
+    if (faqResp.error) {
+      console.error("DIAG MAC: erro ao buscar faq:", faqResp.error.message);
+    } else {
+      faq = faqResp.data || [];
+    }
+
+    console.log("DIAG MAC: contexto carregado", {
+      empresa_encontrada: !!empresa,
+      config_encontrada: !!configMac,
+      total_servicos: servicos.length,
+      total_faq: faq.length,
+      empresa_id: empresaId
+    });
 
     return {
       empresa: empresa || fallback.empresa,
       config_mac: configMac || fallback.config_mac,
       servicos,
-      faq
+      faq,
     };
   } catch (error) {
-    console.error("Erro ao carregar contexto da empresa:", error?.message || error);
+    console.error("DIAG MAC: erro geral ao carregar contexto:", error?.message || error);
     return fallback;
   }
 }
@@ -316,7 +339,7 @@ app.get("/health", (req, res) => {
     message: "Backend funcionando sem crash",
     supabase: !!supabase,
     gemini: !!genAI,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -326,9 +349,17 @@ app.post("/chat", async (req, res) => {
 
     if (!empresa_id || !telefone || !mensagem) {
       return res.status(400).json({
-        error: "Dados obrigatórios faltando"
+        error: "Dados obrigatórios faltando",
       });
     }
+
+    console.log("DIAG MAC: requisição recebida", {
+      empresa_id,
+      canal,
+      telefone_presente: !!telefone,
+      nome_presente: !!nome,
+      mensagem
+    });
 
     const analiseMensagem = analyzeMessage(mensagem);
     const contextoEmpresa = await carregarContextoEmpresa(empresa_id, canal);
@@ -338,6 +369,13 @@ app.post("/chat", async (req, res) => {
       analiseMensagem,
       servicos: contextoEmpresa.servicos,
       contextoVenda: "padrao"
+    });
+
+    console.log("DIAG MAC: evidências montadas", {
+      pediu_cardapio: evidenciasBanco.pediu_cardapio,
+      total_itens_detectados: evidenciasBanco.itens_detectados?.length || 0,
+      total_vitrine: evidenciasBanco.vitrine_inicial?.length || 0,
+      item_principal: evidenciasBanco.servico_detectado_principal?.nome_servico || null
     });
 
     let promptFinal = "";
@@ -351,8 +389,12 @@ app.post("/chat", async (req, res) => {
         estadoConversa: null,
         evidenciasBanco
       });
+
+      console.log("DIAG MAC: prompt montado", {
+        tamanho_prompt: promptFinal ? promptFinal.length : 0
+      });
     } catch (errorPrompt) {
-      console.error("Erro ao montar prompt:", errorPrompt?.message || errorPrompt);
+      console.error("DIAG MAC: erro ao montar prompt:", errorPrompt?.message || errorPrompt);
     }
 
     let respostaFinal =
@@ -367,14 +409,24 @@ app.post("/chat", async (req, res) => {
         const result = await model.generateContent(promptFinal);
         const textoGemini = result?.response?.text?.() || "";
 
+        console.log("DIAG MAC: retorno Gemini", {
+          texto_vazio: !textoGemini.trim(),
+          tamanho_texto: textoGemini.length
+        });
+
         if (textoGemini.trim()) {
           respostaFinal = textoGemini.trim();
         } else {
-          console.error("Gemini retornou texto vazio.");
+          console.error("DIAG MAC: Gemini retornou texto vazio.");
         }
       } catch (errorGemini) {
-        console.error("Erro Gemini:", errorGemini?.message || errorGemini);
+        console.error("DIAG MAC: erro Gemini:", errorGemini?.message || errorGemini);
       }
+    } else {
+      console.error("DIAG MAC: Gemini indisponível ou prompt vazio.", {
+        gemini_disponivel: !!genAI,
+        prompt_preenchido: !!promptFinal
+      });
     }
 
     return res.json({
@@ -386,14 +438,14 @@ app.post("/chat", async (req, res) => {
       nome: nome || null,
       analise: {
         intencao_detectada: analiseMensagem?.intencaoDetectada || null,
-        perfil_hipotese: analiseMensagem?.perfilHipotese || null
+        perfil_hipotese: analiseMensagem?.perfilHipotese || null,
       }
     });
   } catch (err) {
-    console.error("Erro /chat:", err);
+    console.error("DIAG MAC: erro /chat:", err);
     return res.status(500).json({
       error: "Erro interno",
-      detalhes: err?.message || "Falha desconhecida"
+      detalhes: err?.message || "Falha desconhecida",
     });
   }
 });
